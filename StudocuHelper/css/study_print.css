@@ -1,0 +1,27 @@
+/* Tối ưu in cho study.soict.ai - nội dung vừa khít A4, giảm khoảng trắng */
+@media print {
+    @page {
+        margin: 8mm;
+        size: A4;
+    }
+
+    * {
+        -webkit-print-color-adjust: exact !important;
+        print-color-adjust: exact !important;
+    }
+
+    .course-content,
+    .courseware-content,
+    [role="main"],
+    #content,
+    .container,
+    .page-content,
+    .xblock {
+        max-width: none !important;
+        width: 100% !important;
+    }
+
+    html {
+        zoom: 1.25;
+    }
+}

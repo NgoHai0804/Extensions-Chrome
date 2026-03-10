@@ -1,0 +1,185 @@
+<!doctype html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Urban VPN Proxy</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <div class="app">
+      <header class="app-header">
+        <div class="brand">
+          <div class="brand-mark">
+            <span class="brand-mark-main">UV</span>
+            <span class="brand-mark-sub">VPN</span>
+          </div>
+          <div class="brand-text">
+            <h1>Urban VPN Proxy</h1>
+            <p class="brand-subtitle">
+              Tạo proxy tạm thời, nhanh và đơn giản.
+            </p>
+          </div>
+        </div>
+      </header>
+
+      <main class="app-main">
+        <section class="section section-location">
+          <div class="location-row">
+            <div class="section-eyebrow">Vị trí</div>
+            <div id="countryDropdown" class="location-view">
+              <div id="countryDropdownHeader" class="location-view__content">
+                <div class="location-view__flag-wrapper">
+                  <img
+                    id="countryDropdownFlag"
+                    class="location-view__flag"
+                    alt=""
+                  />
+                </div>
+                <p id="countryDropdownName" class="location-view__name">
+                  Chọn quốc gia
+                </p>
+                <svg
+                  id="countryDropdownArrow"
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="20"
+                  height="20"
+                  viewBox="0 0 20 20"
+                  class="location-view__arrow"
+                  aria-hidden="true"
+                >
+                  <path
+                    fill="#94a3b8"
+                    d="M10.009 15.5a.63.63 0 0 0 .434-.182l8.125-8.125a.63.63 0 0 0 .171-.61.62.62 0 0 0-.447-.447.63.63 0 0 0-.61.171L10 13.992 2.318 6.307a.63.63 0 0 0-.61-.171.62.62 0 0 0-.447.447.63.63 0 0 0 .171.61l8.125 8.125c.12.119.282.184.452.182"
+                  />
+                </svg>
+              </div>
+              <div id="countriesPanel" class="countries-panel collapsed">
+                <div class="countries-header">
+                  <div id="countriesStatus" class="section-helper"></div>
+                  <input
+                    id="countriesSearch"
+                    class="countries-search"
+                    type="text"
+                    placeholder="Tìm theo tên hoặc mã"
+                  />
+                </div>
+                <div id="countriesContainer"></div>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="section section-proxy">
+          <div class="section-header">
+            <div class="section-eyebrow">Proxy</div>
+          </div>
+          <div id="selectedCountry" class="selected-country"></div>
+          <div class="proxy-actions-row">
+            <div id="proxyTopupRow" class="proxy-topup-inline" style="display: none;">
+              <label for="proxyServerSelect" class="proxy-topup-label">Server</label>
+              <select id="proxyServerSelect" class="proxy-server-select" aria-label="Chọn server"></select>
+            </div>
+            <button id="btnGetProxy" class="btn btn-primary">Lấy</button>
+          </div>
+          <div id="proxyStatus" class="status-line"></div>
+          <div id="proxyFields" class="proxy-fields">
+            <div class="proxy-field">
+              <div class="proxy-field-label">Username</div>
+              <div class="proxy-field-value">
+                <span id="proxyUsername" class="proxy-mono"></span>
+                <button
+                  type="button"
+                  class="btn btn-copy"
+                  data-copy-target="proxyUsername"
+                >
+                  Copy
+                </button>
+              </div>
+            </div>
+            <div class="proxy-field">
+              <div class="proxy-field-label">Password</div>
+              <div class="proxy-field-value">
+                <span id="proxyPassword" class="proxy-mono"></span>
+                <button
+                  type="button"
+                  class="btn btn-copy"
+                  data-copy-target="proxyPassword"
+                >
+                  Copy
+                </button>
+              </div>
+            </div>
+            <div class="proxy-field">
+              <div class="proxy-field-label">Host</div>
+              <div class="proxy-field-value">
+                <span id="proxyHost" class="proxy-mono"></span>
+                <button
+                  type="button"
+                  class="btn btn-copy"
+                  data-copy-target="proxyHost"
+                >
+                  Copy
+                </button>
+              </div>
+            </div>
+            <div class="proxy-field">
+              <div class="proxy-field-label">Port</div>
+              <div class="proxy-field-value">
+                <span id="proxyPort" class="proxy-mono"></span>
+                <button
+                  type="button"
+                  class="btn btn-copy"
+                  data-copy-target="proxyPort"
+                >
+                  Copy
+                </button>
+              </div>
+            </div>
+            <div class="proxy-field proxy-field--full">
+              <div class="proxy-field-label">HTTP proxy URL</div>
+              <div class="proxy-field-value">
+                <span id="proxyHttp" class="proxy-mono"></span>
+                <button
+                  type="button"
+                  class="btn btn-copy"
+                  data-copy-target="proxyHttp"
+                >
+                  Copy
+                </button>
+              </div>
+            </div>
+            <div class="proxy-field proxy-field--full">
+              <div class="proxy-field-label">HTTPS proxy URL</div>
+              <div class="proxy-field-value">
+                <span id="proxyHttps" class="proxy-mono"></span>
+                <button
+                  type="button"
+                  class="btn btn-copy"
+                  data-copy-target="proxyHttps"
+                >
+                  Copy
+                </button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <section class="section section-account">
+          <div class="section-header">
+            <div class="section-eyebrow">Tài khoản ẩn danh</div>
+          </div>
+          <div class="account-row">
+            <div id="accountInfo" class="account-info"></div>
+            <button id="btnRegister" class="btn btn-outline">
+              Tạo lại tài khoản
+            </button>
+          </div>
+          <div id="accountStatus" class="status-line"></div>
+        </section>
+      </main>
+    </div>
+
+    <script type="module" src="js/popup.js"></script>
+  </body>
+</html>
+

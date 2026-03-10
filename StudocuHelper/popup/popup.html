@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Studocu Helper</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+
+  <header>
+    <div class="logo">
+      <div class="logo-mark">
+        <span class="logo-s">S</span>
+      </div>
+      <div class="logo-text">
+        <h1>Studocu Helper</h1>
+        <span class="logo-subtitle">Extension cho tài liệu Studocu</span>
+      </div>
+    </div>
+    <span class="version">v2.0</span>
+  </header>
+
+  <main>
+    <div class="card">
+      <button id="clearBtn" class="btn btn-secondary">
+        <div class="icon-box">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+        </div>
+        <div class="btn-text">
+          <span class="btn-title">Bước 1: Xóa cookies</span>
+          <span class="btn-desc">Bypass mờ và watermark, reset trang</span>
+        </div>
+      </button>
+
+      <button id="scrollBtn" class="btn btn-scroll">
+        <div class="icon-box">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 5v14"/><path d="m19 12-7 7-7-7"/></svg>
+        </div>
+        <div class="btn-text">
+          <span class="btn-title">Bước 2: Kéo trang</span>
+          <span class="btn-desc">Cuộn qua từng trang để render hết nội dung</span>
+        </div>
+      </button>
+
+      <button id="checkBtn" class="btn btn-primary">
+        <div class="icon-box">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z"/><circle cx="12" cy="12" r="3"/></svg>
+        </div>
+        <div class="btn-text">
+          <span class="btn-title">Bước 3: Download PDF</span>
+          <span class="btn-desc">Tạo file PDF để lưu hoặc in</span>
+        </div>
+      </button>
+
+      <button id="autoBtn" class="btn btn-auto" type="button">
+        <div class="icon-box">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="m12 5 7 7-7 7"/></svg>
+        </div>
+        <div class="btn-text">
+          <span class="btn-title">Auto</span>
+          <span class="btn-desc">Chạy 3 bước trên trang hiện tại</span>
+        </div>
+      </button>
+    </div>
+
+    <div id="status" class="status-bar">
+      <span class="status-dot"></span>
+      <span id="status-text">Sẵn sàng hoạt động</span>
+    </div>
+
+    <footer>
+      <div class="footer-logo">
+        <div class="footer-mark">S</div>
+        <span class="footer-text">Studocu Helper · by Hải</span>
+      </div>
+    </footer>
+  </main>
+
+  <script src="../lib/cookies.js"></script>
+  <script src="../lib/tabs.js"></script>
+  <script src="../lib/status.js"></script>
+  <script src="../js/scroll.js"></script>
+  <script src="../js/pdf-viewer.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>

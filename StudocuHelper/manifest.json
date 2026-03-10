@@ -1,0 +1,44 @@
+{
+  "manifest_version": 3,
+  "name": "Studocu Helper",
+  "version": "2.0", 
+  "permissions": [
+    "cookies",
+    "scripting",  
+    "activeTab",
+    "tabs"
+  ],
+  "host_permissions": [
+    "*://*.studocu.com/*",
+    "*://*.studocu.vn/*",
+    "*://*.soict.ai/*"
+  ],
+  "icons": {
+    "128": "assets/icon-128.png"
+  },
+  "action": {
+    "default_popup": "popup/popup.html",
+    "default_title": "Studocu Helper",
+    "default_icon": {
+      "128": "assets/icon-128.png"
+    }
+  },
+  "content_scripts": [
+    {
+      "matches": ["*://*.studocu.com/*", "*://*.studocu.vn/*"],
+      "css": ["css/custom_style.css"],
+      "run_at": "document_start"
+    },
+    {
+      "matches": ["*://*.soict.ai/*"],
+      "css": ["css/study_print.css"],
+      "run_at": "document_start"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["css/viewer_styles.css"],
+      "matches": ["*://*.studocu.com/*", "*://*.studocu.vn/*"]
+    }
+  ]
+}

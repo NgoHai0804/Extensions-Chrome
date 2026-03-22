@@ -1,0 +1,48 @@
+<svg width="512" height="512" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bgGradient" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#06b6d4"/>
+      <stop offset="50%" stop-color="#22c55e"/>
+      <stop offset="100%" stop-color="#0f172a"/>
+    </linearGradient>
+    <linearGradient id="accentGradient" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#e0f2fe"/>
+      <stop offset="100%" stop-color="#bbf7d0"/>
+    </linearGradient>
+  </defs>
+
+  <!-- Rounded square background -->
+  <rect x="32" y="32" width="448" height="448" rx="112" fill="url(#bgGradient)"/>
+
+  <!-- Chat bubble base -->
+  <g transform="translate(106,118)">
+    <rect x="0" y="32" width="300" height="210" rx="48" fill="rgba(15,23,42,0.9)"/>
+    <path d="M120 242 L120 304 L176 242" fill="rgba(15,23,42,0.9)"/>
+
+    <!-- AI spark / brain nodes -->
+    <circle cx="82" cy="118" r="10" fill="url(#accentGradient)"/>
+    <circle cx="150" cy="96" r="10" fill="url(#accentGradient)"/>
+    <circle cx="218" cy="118" r="10" fill="url(#accentGradient)"/>
+    <circle cx="184" cy="166" r="10" fill="url(#accentGradient)"/>
+    <circle cx="116" cy="166" r="10" fill="url(#accentGradient)"/>
+
+    <!-- connecting lines -->
+    <path d="M82 118 L150 96 L218 118 L184 166 L116 166 Z"
+          fill="none"
+          stroke="rgba(148, 163, 184, 0.9)"
+          stroke-width="4"
+          stroke-linecap="round"
+          stroke-linejoin="round"/>
+
+    <!-- subtle glow behind graph -->
+    <ellipse cx="150" cy="132" rx="110" ry="80" fill="rgba(15,23,42,0.85)"/>
+  </g>
+
+  <!-- bottom highlight ring to suggest Chrome tab / focus -->
+  <path d="M112 360 C160 420 224 448 288 448 C352 448 416 420 464 360"
+        fill="none"
+        stroke="rgba(15,23,42,0.55)"
+        stroke-width="18"
+        stroke-linecap="round"/>
+</svg>
+

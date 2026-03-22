@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <title>AI Helper</title>
+    <link rel="stylesheet" href="popup.css" />
+  </head>
+  <body>
+    <div id="app">
+      <header class="header">
+        <div class="left-header">
+          <button id="toggle-sidebar-btn" title="Ẩn/hiện danh sách chat">≡</button>
+          <span class="title">AI Helper</span>
+        </div>
+        <button id="new-conv-btn-top" class="new-chat-btn" title="Cuộc trò chuyện mới">
+          <span class="plus">+</span>
+          <span>Cuộc trò chuyện mới</span>
+        </button>
+      </header>
+
+      <div id="body-container" class="body collapsed">
+        <aside class="sidebar">
+          <div class="sidebar-header">
+            <span>Cuộc trò chuyện</span>
+          </div>
+          <ul id="conversation-list" class="conversation-list"></ul>
+          <div class="sidebar-actions">
+            <button id="rename-conv-btn">Đổi tên</button>
+            <button id="delete-conv-btn">Xóa</button>
+          </div>
+        </aside>
+
+        <main class="main">
+          <div id="messages" class="messages"></div>
+        </main>
+      </div>
+
+      <footer class="footer">
+        <div class="footer-top">
+          <select id="mode-select">
+            <option value="default">Hỏi đáp</option>
+            <option value="summarize_page">Tóm tắt trang</option>
+            <option value="explain_selection">Giải thích đoạn chọn</option>
+          </select>
+          <select id="model-select" class="model-select">
+            <option value="gpt-4o-mini">gpt-4o-mini</option>
+          </select>
+        </div>
+        <div id="context-hint" class="context-hint"></div>
+        <div class="composer">
+          <textarea
+            id="prompt-input"
+            placeholder="Nhập câu hỏi của bạn..."
+            rows="2"
+          ></textarea>
+          <button id="send-btn">Gửi</button>
+        </div>
+      </footer>
+    </div>
+
+    <script src="../vendor/katex/katex.min.js" defer></script>
+    <script src="popup.js" type="module"></script>
+  </body>
+</html>
+

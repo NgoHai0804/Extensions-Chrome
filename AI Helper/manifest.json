@@ -1,0 +1,23 @@
+{
+  "manifest_version": 3,
+  "name": "AI Helper",
+  "version": "0.1.0",
+  "description": "AI trợ lý cho mọi trang web: hỏi đáp, tóm tắt, giải thích nội dung.",
+  "action": {
+    "default_popup": "src/popup/popup.html"
+  },
+  "background": {
+    "service_worker": "src/background/background.js"
+  },
+  "content_scripts": [
+    {
+      "matches": ["<all_urls>"],
+      "js": ["src/content/contentScript.js"],
+      "css": ["src/content/content.css"]
+    }
+  ],
+  "options_page": "src/options/options.html",
+  "permissions": ["storage", "scripting", "activeTab"],
+  "host_permissions": ["<all_urls>"]
+}
+

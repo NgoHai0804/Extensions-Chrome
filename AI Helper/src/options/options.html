@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="vi">
+  <head>
+    <meta charset="UTF-8" />
+    <title>AI Helper - Cài đặt</title>
+    <link rel="stylesheet" href="options.css" />
+  </head>
+  <body>
+    <div class="page">
+      <header class="top">
+        <h1>AI Helper</h1>
+        <p class="subtitle">Cấu hình API và model mặc định.</p>
+      </header>
+
+      <main class="card">
+        <div class="field">
+          <label for="api-url">API URL</label>
+          <input id="api-url" type="text" placeholder="https://extensiondock.com/chatgpt/v3/question" />
+          <div class="hint">Để mặc định nếu bạn không đổi endpoint.</div>
+        </div>
+
+        <div class="field">
+          <label for="default-model">Model mặc định</label>
+          <input id="default-model" type="text" value="gpt-4o-mini" />
+          <div class="hint">Sẽ dùng khi popup không chọn model khác.</div>
+        </div>
+
+        <div class="actions">
+          <span id="status" class="status" aria-live="polite"></span>
+          <button id="save-btn" class="primary">Lưu</button>
+        </div>
+      </main>
+    </div>
+
+    <script src="options.js" type="module"></script>
+  </body>
+</html>
+

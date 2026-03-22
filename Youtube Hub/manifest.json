@@ -1,0 +1,74 @@
+{
+  "manifest_version": 3,
+  "name": "Lồng tiếng YouTube (Clone v3)",
+  "description": "Bắt URL timedtext + player: phụ đề → dịch → TTS đồng bộ video.",
+  "version": "3.3.0",
+  "icons": {
+    "16": "icons/icon-16.png",
+    "32": "icons/icon-32.png",
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png"
+  },
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com;"
+  },
+  "permissions": ["storage", "webRequest"],
+  "host_permissions": [
+    "*://*.youtube.com/*",
+    "*://youtu.be/*",
+    "*://*.youtube-nocookie.com/*",
+    "https://translate.googleapis.com/*",
+    "https://clients5.google.com/*"
+  ],
+  "background": {
+    "service_worker": "background/service-worker.js",
+    "type": "module"
+  },
+  "action": {
+    "default_title": "Cài đặt lồng tiếng",
+    "default_popup": "popup/popup.html",
+    "default_icon": {
+      "16": "icons/icon-16.png",
+      "32": "icons/icon-32.png",
+      "48": "icons/icon-48.png"
+    }
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "*://*.youtube.com/*",
+        "*://youtu.be/*",
+        "*://*.youtube-nocookie.com/*"
+      ],
+      "js": [
+        "content/core/settings.js",
+        "content/core/constants.js",
+        "content/core/logging.js",
+        "content/modules/content-env.js",
+        "content/modules/content-ui.js",
+        "content/modules/content-tts.js",
+        "content/modules/subtitle-utils.js",
+        "content/ytdub-v3-init.js",
+        "content/ytdub-v3-ui.js",
+        "content/ytdub-v3-helpers.js",
+        "content/ytdub-v3-b1.js",
+        "content/ytdub-v3-b2.js",
+        "content/ytdub-v3-tts.js",
+        "content/ytdub-v3-playback.js",
+        "content/content.js"
+      ],
+      "css": ["content/content.css"],
+      "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": ["content/page-bridge.js"],
+      "matches": [
+        "*://*.youtube.com/*",
+        "*://youtu.be/*",
+        "*://*.youtube-nocookie.com/*"
+      ]
+    }
+  ]
+}

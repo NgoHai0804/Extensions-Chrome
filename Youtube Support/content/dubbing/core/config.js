@@ -16,6 +16,8 @@
     // Giãn cách request timedtext (tránh 429)
     timedtextMinRequestGapMs: 850,
     timedtext429BaseCooldownMs: 2800,
-    timedtext429MaxCooldownMs: 22000
+    timedtext429MaxCooldownMs: 22000,
+    /** Khi tab ẩn / Chrome thu nhỏ: rAF bị throttle — dùng setInterval (ms) để vẫn đồng bộ TTS/sub. */
+    tabHiddenSyncIntervalMs: 250
   };
 })();

@@ -202,7 +202,7 @@ body {
   line-height: 1.35;
 }
 
-/* Công tắc 44×24, nút tròn 20px, dịch đúng 20px */
+/* Công tắc 44×24 — knob 18px, căn giữa dọc, bước ngang 20px */
 .switch {
   flex-shrink: 0;
   width: 44px;
@@ -237,14 +237,22 @@ body {
 
 .switch-knob {
   position: absolute;
-  top: 2px;
-  left: 2px;
-  width: 20px;
-  height: 20px;
+  top: 50%;
+  left: 3px;
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  padding: 0;
   border-radius: 50%;
-  background: #fff;
-  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.35);
-  transition: transform 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+  background: linear-gradient(165deg, #ffffff 0%, #f0f2f5 100%);
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  box-shadow:
+    0 1px 2px rgba(0, 0, 0, 0.22),
+    0 2px 6px rgba(0, 0, 0, 0.12),
+    inset 0 1px 0 rgba(255, 255, 255, 0.95);
+  transform: translateY(-50%);
+  transition: transform 0.22s cubic-bezier(0.4, 0, 0.2, 1);
+  pointer-events: none;
 }
 
 .switch[aria-checked="true"] .switch-track {
@@ -253,8 +261,13 @@ body {
 }
 
 .switch[aria-checked="true"] .switch-knob {
-  transform: translateX(20px);
-  background: linear-gradient(180deg, #ff8a6e, var(--accent));
+  transform: translate(20px, -50%);
+  background: linear-gradient(165deg, #ff9a82 0%, #ff6b4a 55%, #e85a3c 100%);
+  border-color: rgba(0, 0, 0, 0.12);
+  box-shadow:
+    0 1px 3px rgba(0, 0, 0, 0.28),
+    0 0 0 1px rgba(255, 140, 110, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.35);
 }
 
 .tab-panel--guide {

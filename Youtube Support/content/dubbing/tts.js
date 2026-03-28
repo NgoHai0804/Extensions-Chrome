@@ -652,6 +652,7 @@
   Object.assign(V, {
     logTtsState,
     revokeRemoteTtsBlob,
+    resumeTtsAudioContext,
     stopTtsOutput,
     setPhase,
     googleTtsTl,

@@ -179,9 +179,9 @@
     TTS_STALE_GRACE_SEC: 0.18,
     TTS_JOIN_GAP_SEC: 0.22,
     TTS_JOIN_MAX_CHARS: 240,
-    TTS_RATE_MIN: 0.9,
+    TTS_RATE_MIN: 0.95,
     /** Tốc độ tối đa khi thoại dài hơn khung cue. */
-    TTS_RATE_MAX: 2.75,
+    TTS_RATE_MAX: 2.5,
     TTS_PREFETCH_AHEAD: 2,
     TTS_CACHE_MAX: 10,
     TTS_BOOTSTRAP_MIN: 2

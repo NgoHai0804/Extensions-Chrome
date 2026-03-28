@@ -18,6 +18,88 @@
     extOk
   } = V;
 
+  let tabHiddenSyncTimer = null;
+
+  function tabHiddenTickMs() {
+    const n = Number(V.DUBBING_CONFIG?.tabHiddenSyncIntervalMs);
+    return Number.isFinite(n) ? Math.max(100, Math.min(2000, Math.floor(n))) : 250;
+  }
+
+  function clearTabHiddenFallback() {
+    if (tabHiddenSyncTimer != null) {
+      clearInterval(tabHiddenSyncTimer);
+      tabHiddenSyncTimer = null;
+    }
+  }
+
+  /** Một bước đồng bộ video ↔ cue ↔ TTS. Trả về "stop" khi không còn chế độ phát. */
+  function runSyncTickOnce() {
+    if (state.phase !== "playing" || !state.cues.length) return "stop";
+    const video = V.getVideo();
+    if (!video) return "continue";
+    const t = video.currentTime;
+    const idx = findCueIndex(t);
+    if (idx >= 0 && V.ttsNowCueIdx >= 0 && idx !== V.ttsNowCueIdx) {
+      const pastSpokenCue =
+        Number.isFinite(V.ttsNowCueEnd) && t > V.ttsNowCueEnd + V.TTS_STALE_GRACE_SEC;
+      const videoAhead = idx > V.ttsNowCueIdx;
+      if (pastSpokenCue) {
+        V.stopTtsOutput("lag_to_current_cue");
+        const cNow = state.cues[idx];
+        if (cNow) V.enqueueCueTts(cNow.txt || cNow.src, idx, cNow.start, cNow.end);
+      } else if (videoAhead) {
+        V.boostTtsPlaybackIfBehind(t);
+      }
+    }
+    if (idx !== state.lastCue) {
+      if (state.lastCue >= 0 && idx >= 0 && Math.abs(idx - state.lastCue) > 1) {
+        V.ttsQueue.length = 0;
+        V.stopTtsOutput("seek_jump");
+      }
+      state.lastCue = idx;
+      if (idx < 0) {
+        if (ui.sub) ui.sub.style.display = "none";
+      } else {
+        V.prefetchCueWindow(idx);
+        void applyCueAudioAndSub(idx);
+      }
+    }
+    return "continue";
+  }
+
+  /**
+   * Tab nền: rAF gần như dừng → dùng setInterval.
+   * Tab hiện: bỏ interval, chạy một tick bắt kịp rồi rAF.
+   */
+  function ensurePlaybackSyncLoop() {
+    if (state.phase !== "playing" || !state.cues.length) {
+      clearTabHiddenFallback();
+      if (state.raf != null) {
+        cancelAnimationFrame(state.raf);
+        state.raf = null;
+      }
+      return;
+    }
+    if (document.visibilityState === "hidden") {
+      if (state.raf != null) {
+        cancelAnimationFrame(state.raf);
+        state.raf = null;
+      }
+      if (tabHiddenSyncTimer == null) {
+        tabHiddenSyncTimer = setInterval(() => {
+          const r = runSyncTickOnce();
+          if (r === "stop") clearTabHiddenFallback();
+        }, tabHiddenTickMs());
+      }
+    } else {
+      clearTabHiddenFallback();
+      runSyncTickOnce();
+      if (state.phase === "playing" && state.cues.length && state.raf == null) {
+        state.raf = requestAnimationFrame(tickSync);
+      }
+    }
+  }
+
   async function applyCueAudioAndSub(idx, opts) {
     const forceSpeak = Boolean(opts && opts.forceSpeak);
     if (state.phase !== "playing" || idx < 0 || idx >= state.cues.length) return;
@@ -75,6 +157,7 @@
     V.translateMutex = Promise.resolve();
     V.detachDubMediaListeners();
     V.setLoadingOverlay(false);
+    clearTabHiddenFallback();
     if (state.raf != null) {
       cancelAnimationFrame(state.raf);
       state.raf = null;
@@ -104,32 +187,10 @@
       state.raf = requestAnimationFrame(tickSync);
       return;
     }
-    const t = video.currentTime;
-    const idx = findCueIndex(t);
-    if (idx >= 0 && V.ttsNowCueIdx >= 0 && idx !== V.ttsNowCueIdx) {
-      const pastSpokenCue =
-        Number.isFinite(V.ttsNowCueEnd) && t > V.ttsNowCueEnd + V.TTS_STALE_GRACE_SEC;
-      const videoAhead = idx > V.ttsNowCueIdx;
-      if (pastSpokenCue) {
-        V.stopTtsOutput("lag_to_current_cue");
-        const cNow = state.cues[idx];
-        if (cNow) V.enqueueCueTts(cNow.txt || cNow.src, idx, cNow.start, cNow.end);
-      } else if (videoAhead) {
-        V.boostTtsPlaybackIfBehind(t);
-      }
-    }
-    if (idx !== state.lastCue) {
-      if (state.lastCue >= 0 && idx >= 0 && Math.abs(idx - state.lastCue) > 1) {
-        V.ttsQueue.length = 0;
-        V.stopTtsOutput("seek_jump");
-      }
-      state.lastCue = idx;
-      if (idx < 0) {
-        if (ui.sub) ui.sub.style.display = "none";
-      } else {
-        V.prefetchCueWindow(idx);
-        void applyCueAudioAndSub(idx);
-      }
+    const r = runSyncTickOnce();
+    if (r === "stop") {
+      state.raf = null;
+      return;
     }
     state.raf = requestAnimationFrame(tickSync);
   }
@@ -214,7 +275,8 @@
       V.attachDubMediaListeners();
       state.lastCue = -1;
       if (state.raf != null) cancelAnimationFrame(state.raf);
-      state.raf = requestAnimationFrame(tickSync);
+      state.raf = null;
+      ensurePlaybackSyncLoop();
       void V.prefetchRemainingTtsInBackground();
     } catch (e) {
       log(e);
@@ -302,6 +364,19 @@
   window.addEventListener("message", (ev) => {
     if (ev.source !== window || ev.data?.type !== SNAPSHOT_MSG) return;
     state.snapshot = ev.data.payload || null;
+  });
+
+  document.addEventListener("visibilitychange", () => {
+    ensurePlaybackSyncLoop();
+    if (document.visibilityState === "visible" && state.phase === "playing") {
+      try {
+        if (V.remoteTtsAudio && typeof V.resumeTtsAudioContext === "function") {
+          void V.resumeTtsAudioContext(V.remoteTtsAudio);
+        }
+      } catch {
+        /* ignore */
+      }
+    }
   });
 
   setInterval(() => {

@@ -4,8 +4,8 @@
   "description": "Chrome extension — YouTube dubbing clone v3",
   "private": true,
   "scripts": {
-    "vendor": "node -e \"require('fs').mkdirSync('vendor',{recursive:true});require('fs').copyFileSync('node_modules/youtube-transcript/dist/youtube-transcript.esm.js','vendor/youtube-transcript.esm.js');console.log('vendor/youtube-transcript.esm.js OK')\"",
-    "build:icons": "node scripts/generate-extension-icons.cjs",
+    "vendor": "node -e \"const fs=require('fs');const d='background/dubbing/vendor';fs.mkdirSync(d,{recursive:true});fs.copyFileSync('node_modules/youtube-transcript/dist/youtube-transcript.esm.js',d+'/youtube-transcript.esm.js');console.log(d+'/youtube-transcript.esm.js OK')\"",
+    "build:icons": "node icons/generate-png.cjs",
     "test": "echo \"No tests\" && exit 0"
   },
   "keywords": [],

@@ -1,0 +1,13 @@
+ytd-ad-slot-renderer,
+ytd-promoted-sparkles-web-renderer,
+ytd-display-ad-renderer,
+ytd-companion-slot-renderer,
+#masthead-ad,
+#player-ads,
+.video-ads,
+.ytp-ad-module,
+.ytd-search-pyv-renderer,
+ytd-rich-item-renderer:has(ytd-ad-slot-renderer),
+ytd-item-section-renderer:has(ytd-ad-slot-renderer) {
+  display: none !important;
+}

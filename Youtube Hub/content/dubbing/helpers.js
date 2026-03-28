@@ -1,5 +1,5 @@
-/** Video, snapshot, storage, ducking, bridge, media listeners. */
-(function ytdubV3Helpers() {
+/** Video, snapshot, chrome.storage, ducking, inject bridge, listener phát/dừng. */
+(function ytdubHelpers() {
   const V = window.__YTDUB_V3;
   if (!V) return;
 
@@ -8,13 +8,6 @@
   function getVideo() {
     if (env?.getVideo) return env.getVideo();
     return document.querySelector("video.html5-main-video") || document.querySelector("video");
-  }
-
-  function decodeHtml(str) {
-    if (env?.decodeHtml) return env.decodeHtml(str);
-    const t = document.createElement("textarea");
-    t.innerHTML = str;
-    return t.value;
   }
 
   function sleep(ms) {
@@ -64,11 +57,10 @@
     });
   }
 
-  function injectBridge() {
-    if (!extOk()) return;
+  function injectExtensionScript(path) {
     let src;
     try {
-      src = chrome.runtime.getURL("content/page-bridge.js");
+      src = chrome.runtime.getURL(path);
     } catch {
       return;
     }
@@ -78,10 +70,41 @@
     (document.head || document.documentElement).appendChild(s);
   }
 
+  /** Nạp script MAIN world (bridge + CC). */
+  function injectBridge() {
+    if (!extOk()) return;
+    injectExtensionScript("content/dubbing/page-bridge.js");
+    injectExtensionScript("content/dubbing/cc-main-world.js");
+  }
+
+  /** Đồng bộ CC theo cài đặt; pipeline vẫn chờ `waitUntilSubtitlesReadyAfterCc` trước khi tải sub. */
+  async function prepareYoutubeCcBeforeSubtitles() {
+    const cc = window.__YTDUB_CC;
+    if (!cc || typeof cc.syncCcLangAttrFromSettings !== "function") {
+      log("PIPELINE | B0 — bỏ qua CC tự động (không có __YTDUB_CC)");
+      await sleep(80);
+      return;
+    }
+    try {
+      cc.syncCcLangAttrFromSettings(state.settings);
+      if (typeof cc.requestOpenCcSettingsAction === "function") {
+        cc.requestOpenCcSettingsAction();
+      }
+    } catch {
+      /* ignore */
+    }
+    await sleep(120);
+  }
+
   async function loadSettings() {
     if (!extOk()) {
       state.settings = mergeExtensionSettings({});
       V.refreshSubtitleOverlayVisibility();
+      try {
+        window.__YTDUB_CC?.syncCcLangAttrFromSettings?.(state.settings);
+      } catch {
+        /* ignore */
+      }
       return;
     }
     try {
@@ -91,6 +114,11 @@
       state.settings = mergeExtensionSettings({});
     }
     V.refreshSubtitleOverlayVisibility();
+    try {
+      window.__YTDUB_CC?.syncCcLangAttrFromSettings?.(state.settings);
+    } catch {
+      /* ignore */
+    }
   }
 
   function getBackgroundVideoVolume() {
@@ -235,18 +263,13 @@
 
   Object.assign(V, {
     getVideo,
-    decodeHtml,
     sleep,
     videoIdFromUrlOnly,
     resolveVideoId,
     waitSnapshot,
     injectBridge,
+    prepareYoutubeCcBeforeSubtitles,
     loadSettings,
-    getBackgroundVideoVolume,
-    getVoiceDuckVolume,
-    getVoiceUnduckRampMs,
-    cancelVideoVolumeRamp,
-    rampVideoVolumeToBase,
     snapshotVideoAudioState,
     applyBaseVideoAudioState,
     restoreVideoAudioState,

@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
-  "name": "Lồng tiếng YouTube (Clone v3)",
-  "description": "Bắt URL timedtext + player: phụ đề → dịch → TTS đồng bộ video.",
-  "version": "3.3.0",
+  "name": "Trợ lý YouTube",
+  "description": "Tiện ích: lồng tiếng (phụ đề → dịch → TTS) và chặn quảng cáo trên YouTube.",
+  "version": "3.4.0",
   "icons": {
     "16": "icons/icon-16.png",
     "32": "icons/icon-32.png",
@@ -12,7 +12,7 @@
   "content_security_policy": {
     "extension_pages": "script-src 'self'; object-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com;"
   },
-  "permissions": ["storage", "webRequest"],
+  "permissions": ["storage", "webRequest", "declarativeNetRequest", "scripting", "webNavigation"],
   "host_permissions": [
     "*://*.youtube.com/*",
     "*://youtu.be/*",
@@ -25,7 +25,7 @@
     "type": "module"
   },
   "action": {
-    "default_title": "Cài đặt lồng tiếng",
+    "default_title": "Trợ lý YouTube",
     "default_popup": "popup/popup.html",
     "default_icon": {
       "16": "icons/icon-16.png",
@@ -41,29 +41,32 @@
         "*://*.youtube-nocookie.com/*"
       ],
       "js": [
-        "content/core/settings.js",
-        "content/core/constants.js",
-        "content/core/logging.js",
-        "content/modules/content-env.js",
-        "content/modules/content-ui.js",
-        "content/modules/content-tts.js",
-        "content/modules/subtitle-utils.js",
-        "content/ytdub-v3-init.js",
-        "content/ytdub-v3-ui.js",
-        "content/ytdub-v3-helpers.js",
-        "content/ytdub-v3-b1.js",
-        "content/ytdub-v3-b2.js",
-        "content/ytdub-v3-tts.js",
-        "content/ytdub-v3-playback.js",
+        "content/dubbing/core/settings.js",
+        "content/dubbing/core/constants.js",
+        "content/dubbing/core/config.js",
+        "content/dubbing/core/logging.js",
+        "content/dubbing/cc-constants.js",
+        "content/dubbing/modules/content-env.js",
+        "content/dubbing/modules/content-ui.js",
+        "content/dubbing/modules/content-tts.js",
+        "content/dubbing/modules/subtitle-utils.js",
+        "content/dubbing/runtime.js",
+        "content/dubbing/ui.js",
+        "content/dubbing/helpers.js",
+        "content/dubbing/subtitle-loader.js",
+        "content/dubbing/subtitle-timeline.js",
+        "content/dubbing/tts.js",
+        "content/dubbing/playback.js",
+        "content/adblock/adblock-init.js",
         "content/content.js"
       ],
-      "css": ["content/content.css"],
+      "css": ["content/dubbing/content.css", "content/adblock/adblock.css"],
       "run_at": "document_idle"
     }
   ],
   "web_accessible_resources": [
     {
-      "resources": ["content/page-bridge.js"],
+      "resources": ["content/dubbing/page-bridge.js", "content/dubbing/cc-main-world.js"],
       "matches": [
         "*://*.youtube.com/*",
         "*://youtu.be/*",

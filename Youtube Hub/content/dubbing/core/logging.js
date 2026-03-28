@@ -2,6 +2,9 @@
   const core = (window.__YTDUB_CORE = window.__YTDUB_CORE || {});
 
   core.createLogger = function createLogger(prefix) {
+    // Mặc định chạy im lặng; chỉ log khi bật debug thủ công.
+    const enabled = window.__YTDUB_DEBUG__ === true || localStorage.getItem("ytdub_debug") === "1";
+    if (!enabled) return () => {};
     return (...a) => console.log(prefix, ...a);
   };
 

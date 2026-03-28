@@ -43,6 +43,48 @@
       remoteTtsBlobUrl = null;
     }
 
+    function attachTtsGainChain(audioEl) {
+      if (audioEl.__ythubTtsChain) return audioEl.__ythubTtsChain;
+      try {
+        const AC = window.AudioContext || window.webkitAudioContext;
+        if (!AC) return null;
+        const ctx = new AC();
+        const src = ctx.createMediaElementSource(audioEl);
+        const gain = ctx.createGain();
+        gain.gain.value = 1;
+        src.connect(gain);
+        gain.connect(ctx.destination);
+        audioEl.volume = 1;
+        audioEl.__ythubTtsChain = { ctx, gain };
+        return audioEl.__ythubTtsChain;
+      } catch {
+        return null;
+      }
+    }
+
+    function applySpeechVolumeToAudio(audioEl, rawVol) {
+      const v = Number(rawVol);
+      const vol = Number.isFinite(v) ? Math.min(2, Math.max(0, v)) : 1;
+      const chain = attachTtsGainChain(audioEl);
+      if (chain?.gain) {
+        audioEl.volume = 1;
+        chain.gain.gain.value = vol;
+      } else {
+        audioEl.volume = Math.min(1, vol);
+      }
+    }
+
+    async function resumeTtsAudioContext(audioEl) {
+      const ch = audioEl?.__ythubTtsChain;
+      if (ch?.ctx?.state === "suspended") {
+        try {
+          await ch.ctx.resume();
+        } catch {
+          /* ignore */
+        }
+      }
+    }
+
     function stopTtsOutput(reason) {
       ttsLastStopReason = String(reason || "unspecified");
       logTtsState("stop", ttsLastStopReason);
@@ -193,8 +235,7 @@
         remoteTtsAudio.addEventListener("error", () => logTtsState("audio_error", ttsLastStopReason));
         remoteTtsAudio.addEventListener("abort", () => logTtsState("audio_abort", ttsLastStopReason));
       }
-      const vol = state.settings.speechVolume;
-      remoteTtsAudio.volume = Number.isFinite(vol) ? Math.min(1, Math.max(0, vol)) : 1;
+      applySpeechVolumeToAudio(remoteTtsAudio, state.settings.speechVolume);
       const gen = remoteTtsAbortGen;
       const cached = await ensureTtsCachedText(text, gen);
       if (gen !== remoteTtsAbortGen) return false;
@@ -221,6 +262,7 @@
           }
         }
         remoteTtsAudio.playbackRate = playRate;
+        await resumeTtsAudioContext(remoteTtsAudio);
         try {
           await new Promise((resolve, reject) => {
             const capSec =

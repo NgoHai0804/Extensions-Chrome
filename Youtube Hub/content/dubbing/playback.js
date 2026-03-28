@@ -1,5 +1,5 @@
-/** Đồng bộ timeline, pipeline, UI entry, listeners. */
-(function ytdubV3Playback() {
+/** Pipeline lồng tiếng: tải sub, tick đồng bộ, nút bấm. */
+(function ytdubPlayback() {
   const V = window.__YTDUB_V3;
   if (!V) return;
 
@@ -156,6 +156,15 @@
     V.setPhase("loading");
     ui.btn.disabled = true;
     try {
+      await V.prepareYoutubeCcBeforeSubtitles();
+      if (typeof V.waitUntilSubtitlesReadyAfterCc === "function") {
+        const vidWait =
+          V.videoIdFromUrlOnly() || V.resolveVideoId(state.snapshot?.playerResponse) || "";
+        const readyTimeoutMs = Number.isFinite(Number(V.DUBBING_CONFIG?.subtitleReadyTimeoutMs))
+          ? Number(V.DUBBING_CONFIG.subtitleReadyTimeoutMs)
+          : 10000;
+        await V.waitUntilSubtitlesReadyAfterCc(vidWait, readyTimeoutMs);
+      }
       log("PIPELINE | B1 — tải phụ đề (raw)…");
       const { cues: rawCues, lang } = await V.loadSubtitleCues();
       log("PIPELINE | B1 OK |", rawCues.length, "dòng | lang track:", lang || "—");
@@ -320,6 +329,11 @@
       const oldM = mergeExtensionSettings(changes[STORAGE_KEY].oldValue || {});
       const newM = mergeExtensionSettings(changes[STORAGE_KEY].newValue || {});
       state.settings = newM;
+      try {
+        window.__YTDUB_CC?.syncCcLangAttrFromSettings?.(newM);
+      } catch {
+        /* ignore */
+      }
       if (oldM.showSubtitleOverlay !== newM.showSubtitleOverlay) {
         V.refreshSubtitleOverlayVisibility();
       }

@@ -1,10 +1,8 @@
-/**
- * Khởi tạo runtime chung cho Clone v3 (state, ui, hằng số, env).
- * Các file sau gắn hàm lên window.__YTDUB_V3.
- */
-(function ytdubV3Init() {
+/** State, UI shell, hằng số — các script sau gắn lên __YTDUB_V3. */
+(function ytdubRuntime() {
   const w = window;
   const CORE = (w.__YTDUB_CORE = w.__YTDUB_CORE || {});
+  const DUBBING_CONFIG = CORE.DUBBING_CONFIG || {};
 
   const STORAGE_KEY = "ytdub_settings_v3";
   const DEFAULT_SETTINGS = CORE.DEFAULT_SETTINGS || {
@@ -29,15 +27,39 @@
   const MSG_FETCH_YT_LIB = CORE.MSG_FETCH_YT_LIB || "FETCH_YT_TRANSCRIPT_LIB";
   const MSG_TTS_GOOGLE_GTTS = CORE.MSG_TTS_GOOGLE_GTTS || "TTS_GOOGLE_GTTS";
   const TARGET_LANG_TO_GOOGLE_TTS = CORE.TARGET_LANG_TO_GOOGLE_TTS || {
-    vi: "vi",
+    ar: "ar",
+    bn: "bn",
+    cs: "cs",
+    da: "da",
+    de: "de",
+    el: "el",
     en: "en",
+    es: "es",
+    fa: "fa",
+    fi: "fi",
+    fr: "fr",
+    he: "he",
+    hi: "hi",
+    hu: "hu",
+    id: "id",
+    it: "it",
     ja: "ja",
     ko: "ko",
+    ms: "ms",
+    nl: "nl",
+    no: "no",
+    pl: "pl",
+    pt: "pt",
+    ro: "ro",
+    ru: "ru",
+    sv: "sv",
+    th: "th",
+    tl: "tl",
+    tr: "tr",
+    uk: "uk",
+    vi: "vi",
     "zh-CN": "zh-cn",
-    fr: "fr",
-    de: "de",
-    es: "es",
-    tr: "tr"
+    "zh-TW": "zh-tw"
   };
   const chunkForGoogleTts =
     CORE.chunkForGoogleTts ||
@@ -76,8 +98,10 @@
     snapshot: null,
     phase: "idle",
     cues: [],
-    /** Bù trước `start` timedtext để khớp lúc CC trên player đổi dòng (thường sớm hơn file). */
-    cueSyncLeadSec: 0.22,
+    /** Bù start để khớp đổi dòng CC trên player. */
+    cueSyncLeadSec: Number.isFinite(Number(DUBBING_CONFIG.cueSyncLeadSec))
+      ? Number(DUBBING_CONFIG.cueSyncLeadSec)
+      : 0.22,
     subtitleTrackLang: "",
     lastCue: -1,
     lastSpokenCue: -1,
@@ -89,13 +113,15 @@
 
   const env = CORE.createContentEnv ? CORE.createContentEnv(state) : null;
   const translatePromises = new Map();
-  const PREFETCH_AHEAD = 3;
+  const PREFETCH_AHEAD = Number.isFinite(Number(DUBBING_CONFIG.subtitlePrefetchAhead))
+    ? Math.max(1, Math.floor(Number(DUBBING_CONFIG.subtitlePrefetchAhead)))
+    : 3;
 
   const ui = { btn: null, sub: null, loader: null, msgOverlay: null, mountObserver: null };
   const uiModule = CORE.createContentUi ? CORE.createContentUi() : null;
   if (uiModule?.ui) Object.assign(ui, uiModule.ui);
 
-  const log = CORE.createLogger ? CORE.createLogger("[YTDUB-v3]") : (...a) => console.log("[YTDUB-v3]", ...a);
+  const log = CORE.createLogger ? CORE.createLogger("[YTDUB-v3]") : () => {};
 
   function extOk() {
     try {
@@ -116,6 +142,7 @@
     MSG_FETCH_YT_LIB,
     MSG_TTS_GOOGLE_GTTS,
     TARGET_LANG_TO_GOOGLE_TTS,
+    DUBBING_CONFIG,
     chunkForGoogleTts,
     YTDUB_BTN_MARKUP_PREFIX,
     YTDUB_BTN_MARKUP_SUFFIX,
@@ -153,7 +180,7 @@
     TTS_JOIN_GAP_SEC: 0.22,
     TTS_JOIN_MAX_CHARS: 240,
     TTS_RATE_MIN: 0.9,
-    /** Tăng khi thoại dài hơn khung cue; trình phát thường chịu ~2–4×. */
+    /** Tốc độ tối đa khi thoại dài hơn khung cue. */
     TTS_RATE_MAX: 2.75,
     TTS_PREFETCH_AHEAD: 2,
     TTS_CACHE_MAX: 10,

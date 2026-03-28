@@ -8,15 +8,39 @@
   core.MSG_TTS_GOOGLE_GTTS = "TTS_GOOGLE_GTTS";
 
   core.TARGET_LANG_TO_GOOGLE_TTS = {
-    vi: "vi",
+    ar: "ar",
+    bn: "bn",
+    cs: "cs",
+    da: "da",
+    de: "de",
+    el: "el",
     en: "en",
+    es: "es",
+    fa: "fa",
+    fi: "fi",
+    fr: "fr",
+    he: "he",
+    hi: "hi",
+    hu: "hu",
+    id: "id",
+    it: "it",
     ja: "ja",
     ko: "ko",
+    ms: "ms",
+    nl: "nl",
+    no: "no",
+    pl: "pl",
+    pt: "pt",
+    ro: "ro",
+    ru: "ru",
+    sv: "sv",
+    th: "th",
+    tl: "tl",
+    tr: "tr",
+    uk: "uk",
+    vi: "vi",
     "zh-CN": "zh-cn",
-    fr: "fr",
-    de: "de",
-    es: "es",
-    tr: "tr"
+    "zh-TW": "zh-tw"
   };
 
   core.chunkForGoogleTts = function chunkForGoogleTts(text, maxLen) {

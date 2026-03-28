@@ -1,5 +1,5 @@
-/** B2 — tách SUB theo dấu câu; thời gian trong mỗi đoạn chia đều theo số từ × duration, rồi gộp câu. */
-(function ytdubV3B2() {
+/** Chuẩn hóa cue, tách câu, chỉnh start/end cho đồng bộ đọc. */
+(function ytdubSubtitleTimeline() {
   const V = window.__YTDUB_V3;
   if (!V) return;
 
@@ -14,20 +14,13 @@
     extOk
   } = V;
 
-  function trimSpan(full, a, b) {
-    let u = a;
-    let v = b;
-    while (u < v && /\s/.test(full[u])) u += 1;
-    while (v > u && /\s/.test(full[v - 1])) v -= 1;
-    return { u, v };
-  }
+  const INTER_WORD_GAP_MERGE_MAX = 0.5;
+  /** Khe nhỏ giữa hai cue liền nhau: gom biên để đọc không bị ngắt (giây). */
+  const GAP_SNAP_MAX = 0.14;
+  /** Cho phép chồng thời gian nhỏ khi gộp cue; vượt ngưỡng thì không gộp (giây). */
+  const SOURCE_OVERLAP_TOLERANCE = 0.12;
+  const MIN_CUE_DURATION = 0.04;
 
-  /**
-   * Lọc noise thường gặp trong phụ đề auto để tránh TTS đọc thừa.
-   * - Ký hiệu hướng thoại: >>, <<, >, <
-   * - Nhãn trong ngoặc vuông: [Nhạc], [Âm nhạc], [Music], ...
-   * - Dấu "..." đứng riêng như một token
-   */
   function sanitizeSubtitleText(raw) {
     let s = String(raw || "");
     s = s.replace(/\[(?:[^\]\r\n]{1,80})\]/g, " ");
@@ -37,12 +30,27 @@
     return s;
   }
 
-  /**
-   * Trong mỗi đoạn SUB: duration = end − start, chia đều cho từng từ (n từ → mỗi từ một khoảng duration/n).
-   * Ghép toàn bộ từ theo thứ tự thành một chuỗi (cách nhau bằng dấu cách) để tách câu.
-   */
-  function buildWordTimelineFromCues(cues) {
-    const sorted = [...cues]
+  /** Nếu khe giữa hai cue quá nhỏ: kéo start cue sau sát end cue trước. */
+  function snapMicroGapsBetweenCues(cues, maxGapSec) {
+    const lim = Number(maxGapSec);
+    const cap = Number.isFinite(lim) && lim > 0 ? lim : GAP_SNAP_MAX;
+    if (!Array.isArray(cues) || cues.length < 2) return cues;
+    for (let i = 1; i < cues.length; i += 1) {
+      const prev = cues[i - 1];
+      const cur = cues[i];
+      const pe = Number(prev.end);
+      const ns = Number(cur.start);
+      if (!Number.isFinite(pe) || !Number.isFinite(ns)) continue;
+      const gap = ns - pe;
+      if (gap > 0 && gap <= cap) {
+        cur.start = pe;
+      }
+    }
+    return cues;
+  }
+
+  function sortCuesByTime(arr) {
+    return [...arr]
       .filter((c) => c && String(c.text || "").trim())
       .sort((a, b) => {
         const da = Number(a.start) || 0;
@@ -50,26 +58,108 @@
         if (da !== db) return da - db;
         return (Number(a.end) || 0) - (Number(b.end) || 0);
       });
+  }
 
-    /** @type {{ text: string, t0: number, t1: number }[]} */
+  /** Sắp theo start; cắt end không vượt start cue sau; không lùi start; tối thiểu độ dài. */
+  function normalizeSourceCueWindows(cues, minDurSec) {
+    const sorted = sortCuesByTime(cues);
+    const out = [];
+    const minDur = Number(minDurSec);
+    const eps = Number.isFinite(minDur) && minDur > 0 ? minDur : MIN_CUE_DURATION;
+    let cursor = 0;
+    for (let i = 0; i < sorted.length; i += 1) {
+      const cur = sorted[i];
+      const next = sorted[i + 1];
+      let s = Number(cur.start);
+      let e = Number(cur.end);
+      if (!Number.isFinite(s)) s = cursor;
+      if (!Number.isFinite(e)) e = s;
+      if (e < s) e = s;
+      const nextS = Number(next?.start);
+      if (Number.isFinite(nextS) && nextS > s) e = Math.min(e, nextS);
+      if (s < cursor) s = cursor;
+      if (e < s + eps) e = s + eps;
+      cursor = e;
+      out.push({ start: s, end: e, text: String(cur.text || "").trim() });
+    }
+    return out;
+  }
+
+  function trimSpan(full, a, b) {
+    let u = a;
+    let v = b;
+    while (u < v && /\s/.test(full[u])) u += 1;
+    while (v > u && /\s/.test(full[v - 1])) v -= 1;
+    return { u, v };
+  }
+
+  function endsWithSentencePunct(raw) {
+    const s = String(raw || "").trim();
+    if (!s) return false;
+    const last = s[s.length - 1];
+    if (".!?。！？".includes(last)) return true;
+    if (last === "…") return true;
+    if (s.length >= 3 && s.endsWith("...")) return true;
+    return false;
+  }
+
+  function mergeAdjacentRawCuesForNoPunct(cues, maxGapSec) {
+    const lim = Number(maxGapSec);
+    const cap = Number.isFinite(lim) && lim > 0 ? lim : INTER_WORD_GAP_MERGE_MAX;
+    const sorted = normalizeSourceCueWindows(cues, MIN_CUE_DURATION);
+    const out = [];
+    let i = 0;
+    while (i < sorted.length) {
+      let cs = Number(sorted[i].start);
+      let ce = Number(sorted[i].end);
+      if (!Number.isFinite(cs)) cs = 0;
+      if (!Number.isFinite(ce)) ce = cs;
+      if (ce < cs) ce = cs;
+      let text = String(sorted[i].text || "").trim();
+
+      let j = i;
+      while (j + 1 < sorted.length) {
+        if (endsWithSentencePunct(text)) break;
+        const nxt = sorted[j + 1];
+        let ns = Number(nxt.start);
+        let ne = Number(nxt.end);
+        if (!Number.isFinite(ns)) ns = ce;
+        if (!Number.isFinite(ne)) ne = ns;
+        if (ne < ns) ne = ns;
+        const gap = ns - ce;
+        const g = Number.isFinite(gap) ? gap : cap + 1;
+        if (g >= cap || g < -SOURCE_OVERLAP_TOLERANCE) break;
+        text = `${text} ${String(nxt.text || "").trim()}`.replace(/\s+/g, " ").trim();
+        cs = Math.min(cs, ns);
+        ce = Math.max(ce, ne);
+        j += 1;
+      }
+      out.push({ start: cs, end: ce, text });
+      i = j + 1;
+    }
+    return out;
+  }
+
+  function buildWordTimelineFromCues(cues) {
+    const sorted = normalizeSourceCueWindows(cues, MIN_CUE_DURATION);
     const tokens = [];
-
     for (const c of sorted) {
       const piece = sanitizeSubtitleText(c.text);
       const words = piece.split(/\s+/).filter(Boolean);
       if (!words.length) continue;
 
-      const cs = Number(c.start);
-      const ce = Number(c.end);
-      const t0 = Number.isFinite(cs) ? cs : 0;
-      const t1 = Number.isFinite(ce) ? ce : t0;
+      const t0 = Number.isFinite(Number(c.start)) ? Number(c.start) : 0;
+      let t1 = Number.isFinite(Number(c.end)) ? Number(c.end) : t0;
+      if (t1 < t0) t1 = t0;
       const dur = Math.max(0.001, t1 - t0);
       const n = words.length;
 
       for (let i = 0; i < n; i += 1) {
-        const w0 = t0 + (i / n) * dur;
-        const w1 = t0 + ((i + 1) / n) * dur;
-        tokens.push({ text: words[i], t0: w0, t1: w1 });
+        tokens.push({
+          text: words[i],
+          t0: t0 + (i / n) * dur,
+          t1: t0 + ((i + 1) / n) * dur
+        });
       }
     }
 
@@ -81,11 +171,9 @@
       offsets[i] = pos;
       pos += tokens[i].text.length;
     }
-
     return { full, tokens, offsets };
   }
 
-  /** Span ký tự [u,v) trên chuỗi ghép → thời điểm bắt đầu từ đầu tiên / kết thúc từ cuối cùng giao cắt. */
   function timeRangeForTextSpan(tokens, offsets, u, v) {
     if (!tokens.length || v <= u) return null;
     let i0 = -1;
@@ -98,12 +186,11 @@
         i1 = i;
       }
     }
-    if (i0 < 0 || i1 < 0) return null;
+    if (i0 < 0) return null;
     return { tStart: tokens[i0].t0, tEnd: tokens[i1].t1 };
   }
 
-  /** Tách theo . ? ! … và ... (ASCII); phần cuối không có dấu vẫn thành một câu. */
-  function extractSentenceSpans(full) {
+  function spansByPunctuation(full) {
     const spans = [];
     const n = full.length;
     let a = 0;
@@ -120,7 +207,6 @@
     while (a < n) {
       while (a < n && /\s/.test(full[a])) a += 1;
       if (a >= n) break;
-
       let j = a;
       let endPos = -1;
       while (j < n) {
@@ -131,75 +217,118 @@
         }
         j += 1;
       }
-
       if (endPos < 0) {
-        spans.push({ a, b: n });
+        spans.push({ a, b: n, checkWordGap: true });
         break;
       }
-
       let b = endPos;
       while (b < n && "\"'」』)]".includes(full[b])) b += 1;
-      spans.push({ a, b });
+      spans.push({ a, b, checkWordGap: false });
       a = b;
     }
-
     return spans;
   }
 
-  /**
-   * Ghép từ (chia duration theo từ) → tách câu theo dấu câu → start/end từ các từ giao cắt câu.
-   */
+  function splitSpanByInterWordGap(full, tokens, offsets, spanA, spanB, maxGapSec) {
+    const cap = Number(maxGapSec);
+    const lim = Number.isFinite(cap) && cap > 0 ? cap : INTER_WORD_GAP_MERGE_MAX;
+    const idxs = [];
+    for (let i = 0; i < tokens.length; i += 1) {
+      const o = offsets[i];
+      const e = o + tokens[i].text.length;
+      if (e > spanA && o < spanB) idxs.push(i);
+    }
+    if (idxs.length <= 1) return [{ a: spanA, b: spanB }];
+
+    const cuts = [spanA];
+    for (let k = 1; k < idxs.length; k += 1) {
+      const g = Number(tokens[idxs[k]].t0) - Number(tokens[idxs[k - 1]].t1);
+      const gap = Number.isFinite(g) ? g : 0;
+      if (gap >= lim) cuts.push(offsets[idxs[k]]);
+    }
+    cuts.push(spanB);
+    const out = [];
+    for (let c = 0; c < cuts.length - 1; c += 1) {
+      out.push({ a: cuts[c], b: cuts[c + 1] });
+    }
+    return out.length ? out : [{ a: spanA, b: spanB }];
+  }
+
   function splitSubtitleCuesBySentences(cues) {
     if (!Array.isArray(cues) || !cues.length) return [];
-    const { full, tokens, offsets } = buildWordTimelineFromCues(cues);
+    const mergedRaw = mergeAdjacentRawCuesForNoPunct(cues, INTER_WORD_GAP_MERGE_MAX);
+    const { full, tokens, offsets } = buildWordTimelineFromCues(mergedRaw);
     if (!full || !tokens.length) return [];
 
-    const spans = extractSentenceSpans(full);
     const EPS = 0.04;
     const raw = [];
 
-    for (const { a, b } of spans) {
-      const { u, v } = trimSpan(full, a, b);
-      if (v <= u) continue;
-
-      const text = sanitizeSubtitleText(full.slice(u, v));
-      if (!text) continue;
-
-      const tr = timeRangeForTextSpan(tokens, offsets, u, v);
-      if (!tr) continue;
-
+    function pushCharSpan(u, v) {
+      const { u: uu, v: vv } = trimSpan(full, u, v);
+      if (vv <= uu) return;
+      const text = sanitizeSubtitleText(full.slice(uu, vv));
+      if (!text) return;
+      const tr = timeRangeForTextSpan(tokens, offsets, uu, vv);
+      if (!tr) return;
       let start = Number(tr.tStart);
       let end = Number(tr.tEnd);
       if (!Number.isFinite(start)) start = 0;
       if (!Number.isFinite(end)) end = start;
       if (end < start) {
-        const tmp = start;
+        const t = start;
         start = end;
-        end = tmp;
+        end = t;
       }
       if (end < start + EPS) end = start + EPS;
-
       raw.push({ start, end, text });
+    }
+
+    for (const { a, b, checkWordGap } of spansByPunctuation(full)) {
+      if (!checkWordGap) {
+        pushCharSpan(a, b);
+        continue;
+      }
+      for (const { a: sa, b: sb } of splitSpanByInterWordGap(
+        full,
+        tokens,
+        offsets,
+        a,
+        b,
+        INTER_WORD_GAP_MERGE_MAX
+      )) {
+        pushCharSpan(sa, sb);
+      }
     }
 
     if (!raw.length) return [];
 
-    // Ưu tiên giữ start gốc để khớp môi; nếu overlap thì cắt end câu trước.
     const out = [];
     for (let i = 0; i < raw.length; i += 1) {
       const cur = raw[i];
       const prev = out.length ? out[out.length - 1] : null;
-
       let start = cur.start;
       let end = cur.end;
-
       if (prev && start < prev.end) {
         const prevStart = Number(prev.start) || 0;
         prev.end = Math.max(prevStart + EPS, start);
       }
       if (end < start + EPS) end = start + EPS;
-
       out.push({ start, end, text: cur.text });
+    }
+
+    snapMicroGapsBetweenCues(out, GAP_SNAP_MAX);
+    for (let i = 0; i < out.length - 1; i += 1) {
+      const nextS = Number(out[i + 1].start);
+      if (Number.isFinite(nextS)) {
+        out[i].end = Math.min(Number(out[i].end), nextS);
+      }
+    }
+    for (let i = 0; i < out.length; i += 1) {
+      const s = Number(out[i].start);
+      let e = Number(out[i].end);
+      if (!Number.isFinite(s)) continue;
+      if (!Number.isFinite(e) || e <= s) e = s + EPS;
+      out[i].end = e;
     }
     return out;
   }
@@ -278,10 +407,6 @@
     }));
   }
 
-  /**
-   * Căn `end` mỗi cue tới `start` cue kế — khớp hành vi CC (dòng chuyển khi dòng sau bắt đầu).
-   * Tránh timedtext/json3 kéo dài `end` → TTS tính khung quá dài, chậm hơn thực tế và lệch câu.
-   */
   function normalizeCueTimeline(arr) {
     if (!Array.isArray(arr) || arr.length === 0) return arr;
     arr.sort((a, b) => {
@@ -302,6 +427,22 @@
         if (Number.isFinite(nextS)) e = Math.min(e, nextS);
       }
       if (e <= s) e = s + EPS;
+      c.start = s;
+      c.end = e;
+    }
+    snapMicroGapsBetweenCues(arr, GAP_SNAP_MAX);
+    for (let i = 0; i < arr.length - 1; i += 1) {
+      const nextS = Number(arr[i + 1].start);
+      if (Number.isFinite(nextS)) {
+        arr[i].end = Math.min(Number(arr[i].end), nextS);
+      }
+    }
+    for (let i = 0; i < arr.length; i += 1) {
+      const c = arr[i];
+      let s = Number(c.start);
+      let e = Number(c.end);
+      if (!Number.isFinite(s)) s = 0;
+      if (!Number.isFinite(e) || e <= s) e = s + EPS;
       c.start = s;
       c.end = e;
     }

@@ -1,8 +1,38 @@
 (function ytdubSubtitleUtils() {
   const core = (window.__YTDUB_CORE = window.__YTDUB_CORE || {});
+  const cfg = core.DUBBING_CONFIG || {};
 
   core.createSubtitleUtils = function createSubtitleUtils(deps) {
     const { decodeHtml, getVideo, sleep, orderCaptionTracks, getTargetLang, log } = deps;
+    const TIMEDTEXT_MIN_REQUEST_GAP_MS = Number.isFinite(Number(cfg.timedtextMinRequestGapMs))
+      ? Math.max(100, Number(cfg.timedtextMinRequestGapMs))
+      : 850;
+    const TIMEDTEXT_429_BASE_COOLDOWN_MS = Number.isFinite(Number(cfg.timedtext429BaseCooldownMs))
+      ? Math.max(300, Number(cfg.timedtext429BaseCooldownMs))
+      : 2800;
+    const TIMEDTEXT_429_MAX_COOLDOWN_MS = Number.isFinite(Number(cfg.timedtext429MaxCooldownMs))
+      ? Math.max(TIMEDTEXT_429_BASE_COOLDOWN_MS, Number(cfg.timedtext429MaxCooldownMs))
+      : 22000;
+    let timedtextLastRequestAt = 0;
+    let timedtextCooldownUntil = 0;
+
+    async function waitTimedtextRequestWindow() {
+      const now = Date.now();
+      const waitCooldown = Math.max(0, timedtextCooldownUntil - now);
+      const waitGap = Math.max(0, TIMEDTEXT_MIN_REQUEST_GAP_MS - (now - timedtextLastRequestAt));
+      const waitMs = Math.max(waitCooldown, waitGap);
+      if (waitMs > 0) await sleep(waitMs);
+      timedtextLastRequestAt = Date.now();
+    }
+
+    function pushTimedtextCooldown(level) {
+      const n = Math.max(0, Number(level) || 0);
+      const cooldown = Math.min(
+        TIMEDTEXT_429_MAX_COOLDOWN_MS,
+        TIMEDTEXT_429_BASE_COOLDOWN_MS * Math.pow(2, Math.min(n, 3))
+      );
+      timedtextCooldownUntil = Math.max(timedtextCooldownUntil, Date.now() + cooldown);
+    }
 
     function parseJson3(data) {
       const events = Array.isArray(data?.events) ? data.events : [];
@@ -198,9 +228,13 @@
         const url = urls[u];
         for (let att = 0; att < 3; att += 1) {
           try {
-            if (att) await sleep(350 * att);
+            if (att) await sleep(450 + 350 * att);
+            await waitTimedtextRequestWindow();
             const res = await fetch(url, fetchOpts);
-            if (!res.ok) throw new Error(String(res.status));
+            if (!res.ok) {
+              if (res.status === 429) pushTimedtextCooldown(att + u + 1);
+              throw new Error(String(res.status));
+            }
             const ct = (res.headers.get("content-type") || "").toLowerCase();
             if (ct.includes("image/") || ct.includes("video/") || ct.includes("font/")) throw new Error("wrong_mime");
             const body = await res.text();

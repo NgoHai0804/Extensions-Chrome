@@ -1,5 +1,5 @@
-/** Mount loader, nút, overlay lỗi — tương tác content-ui module hoặc fallback. */
-(function ytdubV3Ui() {
+/** Nút, loader, overlay lỗi (dùng content-ui hoặc fallback). */
+(function ytdubUi() {
   const V = window.__YTDUB_V3;
   if (!V) return;
 

@@ -1,5 +1,5 @@
-/** B3 — Google translate_tts qua SW, queue, preload, setPhase. */
-(function ytdubV3Tts() {
+/** TTS Google qua service worker: hàng đợi, preload, setPhase. */
+(function ytdubTts() {
   const V = window.__YTDUB_V3;
   if (!V) return;
 
@@ -33,6 +33,49 @@
       /* ignore */
     }
     V.remoteTtsBlobUrl = null;
+  }
+
+  /** >100% cần GainNode (thuộc tính volume của Audio tối đa 1). */
+  function attachTtsGainChain(audioEl) {
+    if (audioEl.__ythubTtsChain) return audioEl.__ythubTtsChain;
+    try {
+      const AC = window.AudioContext || window.webkitAudioContext;
+      if (!AC) return null;
+      const ctx = new AC();
+      const src = ctx.createMediaElementSource(audioEl);
+      const gain = ctx.createGain();
+      gain.gain.value = 1;
+      src.connect(gain);
+      gain.connect(ctx.destination);
+      audioEl.volume = 1;
+      audioEl.__ythubTtsChain = { ctx, gain };
+      return audioEl.__ythubTtsChain;
+    } catch {
+      return null;
+    }
+  }
+
+  function applySpeechVolumeToAudio(audioEl, rawVol) {
+    const v = Number(rawVol);
+    const vol = Number.isFinite(v) ? Math.min(2, Math.max(0, v)) : 1;
+    const chain = attachTtsGainChain(audioEl);
+    if (chain?.gain) {
+      audioEl.volume = 1;
+      chain.gain.gain.value = vol;
+    } else {
+      audioEl.volume = Math.min(1, vol);
+    }
+  }
+
+  async function resumeTtsAudioContext(audioEl) {
+    const ch = audioEl?.__ythubTtsChain;
+    if (ch?.ctx?.state === "suspended") {
+      try {
+        await ch.ctx.resume();
+      } catch {
+        /* ignore */
+      }
+    }
   }
 
   function stopTtsOutput(reason) {
@@ -391,9 +434,7 @@
       V.remoteTtsAudio.addEventListener("error", () => logTtsState("audio_error", V.ttsLastStopReason));
       V.remoteTtsAudio.addEventListener("abort", () => logTtsState("audio_abort", V.ttsLastStopReason));
     }
-    const vol = state.settings.speechVolume;
-    if (!Number.isFinite(vol)) V.remoteTtsAudio.volume = 1;
-    else V.remoteTtsAudio.volume = Math.min(1, Math.max(0, vol));
+    applySpeechVolumeToAudio(V.remoteTtsAudio, state.settings.speechVolume);
     const gen = V.remoteTtsAbortGen;
     const cached = await ensureTtsCachedText(text, gen);
     if (gen !== V.remoteTtsAbortGen) return false;
@@ -423,6 +464,7 @@
       if (Number.isFinite(dur) && dur > 0) audioStopAt = getTtsAudioStopTimelineSec(dur);
     }
     V.remoteTtsAudio.playbackRate = playRate;
+    await resumeTtsAudioContext(V.remoteTtsAudio);
 
     try {
       await new Promise((resolve, reject) => {

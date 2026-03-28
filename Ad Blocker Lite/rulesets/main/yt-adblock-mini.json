@@ -1,0 +1,47 @@
+[
+  {
+    "id": 830001,
+    "priority": 1,
+    "action": { "type": "block" },
+    "condition": {
+      "urlFilter": "youtube.com/pagead/",
+      "resourceTypes": ["xmlhttprequest", "sub_frame", "script", "image"]
+    }
+  },
+  {
+    "id": 830002,
+    "priority": 1,
+    "action": { "type": "block" },
+    "condition": {
+      "urlFilter": "youtube.com/youtubei/v1/player/ad_break",
+      "resourceTypes": ["xmlhttprequest"]
+    }
+  },
+  {
+    "id": 830003,
+    "priority": 1,
+    "action": { "type": "block" },
+    "condition": {
+      "urlFilter": "doubleclick.net",
+      "resourceTypes": ["xmlhttprequest", "sub_frame", "script", "image"]
+    }
+  },
+  {
+    "id": 830004,
+    "priority": 1,
+    "action": { "type": "block" },
+    "condition": {
+      "urlFilter": "googlesyndication.com",
+      "resourceTypes": ["xmlhttprequest", "sub_frame", "script", "image"]
+    }
+  },
+  {
+    "id": 830005,
+    "priority": 1,
+    "action": { "type": "block" },
+    "condition": {
+      "urlFilter": "googleads.g.doubleclick.net",
+      "resourceTypes": ["xmlhttprequest", "sub_frame", "script", "image"]
+    }
+  }
+]

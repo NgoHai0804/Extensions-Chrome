@@ -247,7 +247,7 @@ export function buildPersistedStoragePayload(raw) {
   };
 }
 
-/** Session: videoId → { url, ts } */
+/** Session: videoId → { url, ts, status } — status = HTTP khi onCompleted (kể cả 429) */
 export const TIMEDTEXT_SESSION_KEY = "ytdubTimedtextByVideo";
 
 export const MESSAGE_TYPES = {

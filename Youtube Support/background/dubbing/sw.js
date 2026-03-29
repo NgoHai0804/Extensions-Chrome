@@ -89,17 +89,20 @@ function videoIdFromTimedtextUrl(urlStr) {
   }
 }
 
-/** Giống hướng Extension: bắt request thật tới /api/timedtext, lưu URL đầy đủ theo videoId */
+/**
+ * Bắt mọi request hoàn tất tới /api/timedtext — ghi cả HTTP lỗi (429, 403, …) để content biết URL + status.
+ */
 chrome.webRequest.onCompleted.addListener(
   async (details) => {
     if (details.tabId == null || details.tabId < 0) return;
-    if (details.statusCode && details.statusCode >= 400) return;
     const vid = videoIdFromTimedtextUrl(details.url);
     if (!vid) return;
 
+    const code = Number(details.statusCode);
+    const status = Number.isFinite(code) ? code : 0;
     const data = await chrome.storage.session.get(TIMEDTEXT_SESSION_KEY);
     const map = { ...(data[TIMEDTEXT_SESSION_KEY] || {}) };
-    map[vid] = { url: details.url, ts: Date.now() };
+    map[vid] = { url: details.url, ts: Date.now(), status };
 
     const ids = Object.keys(map);
     if (ids.length > MAX_VIDEO_CACHE + 8) {
@@ -209,7 +212,12 @@ chrome.runtime.onMessage.addListener((msg, _s, sendResponse) => {
       const data = await chrome.storage.session.get(TIMEDTEXT_SESSION_KEY);
       const map = data[TIMEDTEXT_SESSION_KEY] || {};
       const hit = map[videoId];
-      sendResponse({ ok: true, url: hit?.url || "" });
+      const st = hit?.status;
+      sendResponse({
+        ok: true,
+        url: hit?.url ? String(hit.url) : "",
+        status: typeof st === "number" && Number.isFinite(st) ? st : null
+      });
     })();
     return true;
   }

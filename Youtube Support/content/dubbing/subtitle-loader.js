@@ -111,15 +111,20 @@
     return { cues, lang: lang || "" };
   }
 
+  /**
+   * URL + HTTP status lần gần nhất bắt được từ tab (webRequest onCompleted), kể cả 429.
+   * @returns {Promise<{ url: string, status: number | null }>}
+   */
   async function getCachedTimedtextUrl(videoId, msgTimeoutMs) {
-    if (!extOk() || !videoId) return "";
+    const empty = () => ({ url: "", status: null });
+    if (!extOk() || !videoId) return empty();
     const wait = Math.max(500, Math.min(4000, Number(msgTimeoutMs) || 1600));
     return new Promise((resolve) => {
       let done = false;
       const timer = setTimeout(() => {
         if (done) return;
         done = true;
-        resolve("");
+        resolve(empty());
       }, wait);
       try {
         chrome.runtime.sendMessage({ type: MSG_CACHED_TT, videoId }, (res) => {
@@ -127,16 +132,23 @@
           done = true;
           clearTimeout(timer);
           if (chrome.runtime.lastError) {
-            resolve("");
+            resolve(empty());
             return;
           }
-          resolve(res?.ok && res.url ? String(res.url) : "");
+          if (!res?.ok) {
+            resolve(empty());
+            return;
+          }
+          const url = res.url ? String(res.url) : "";
+          const st = res.status;
+          const status = typeof st === "number" && Number.isFinite(st) ? st : null;
+          resolve({ url, status });
         });
       } catch {
         if (done) return;
         done = true;
         clearTimeout(timer);
-        resolve("");
+        resolve(empty());
       }
     });
   }
@@ -272,22 +284,25 @@
       const slice = Math.min(1500, Math.max(400, endAt - Date.now()));
       if (slice < 200) break;
       n += 1;
-      const cached = await getCachedTimedtextUrl(videoId, slice);
+      const { url: cachedUrl, status: cachedStatus } = await getCachedTimedtextUrl(videoId, slice);
       if (signal?.aborted) return null;
-      if (cached) {
-        if (timedtextSignedUrlLikelyStale(cached)) {
+      if (cachedUrl) {
+        if (timedtextSignedUrlLikelyStale(cachedUrl)) {
           await V.sleep(280);
           continue;
         }
-        const lastAt = Number(timedtextUrlSeenAt.get(cached) || 0);
+        const lastAt = Number(timedtextUrlSeenAt.get(cachedUrl) || 0);
         const now = Date.now();
         if (now - lastAt < TIMEDTEXT_SAME_URL_RETRY_GAP_MS) {
           await V.sleep(500);
           continue;
         }
-        timedtextUrlSeenAt.set(cached, now);
+        timedtextUrlSeenAt.set(cachedUrl, now);
         if (signal?.aborted) return null;
-        const c = await fetchTimedtextCues(cached, { signal });
+        if (typeof cachedStatus === "number" && cachedStatus >= 400) {
+          log("B1 | cache timedtext capture status=" + cachedStatus + " — vẫn thử fetchTimedtextCues");
+        }
+        const c = await fetchTimedtextCues(cachedUrl, { signal });
         const out = returnIfCues(`${methodPrefix} #${n}`, videoId, c, "");
         if (out) return out;
         await V.sleep(320);
@@ -414,27 +429,40 @@
     return captionTracksFromPr(pr).length > 0;
   }
 
-  /** Chờ đến khi có cues trên player hoặc có URL timedtext trong cache (tối đa maxWaitMs). */
+  /**
+   * Chờ URL timedtext trong cache session; gửi qua `fetchTimedtextCues` (subtitle-utils: fmt, 5 lần, 429 bỏ tlang).
+   * Mọi lỗi (429, mạng, URL invalid, reject…) đều bắt — chờ tiếp trong ngân sách thời gian.
+   */
   async function waitUntilSubtitlesReadyAfterCc(videoId, maxWaitMs) {
     const max = Math.max(4000, Math.min(120000, Number(maxWaitMs) || 60000));
     const t0 = Date.now();
-    log("PIPELINE | B0.5 — chờ chọn phụ đề + ngôn ngữ (cues trên video hoặc timedtext trong cache)…");
+    log("PIPELINE | B0.5 — chờ timedtext cache session → fetchTimedtextCues…");
     await V.sleep(500);
     while (Date.now() - t0 < max) {
-      if (videoTextTracksHaveCues()) {
-        log("PIPELINE | B0.5 OK — textTracks đã có cues");
-        await V.sleep(250);
-        return;
+      if (!videoId) {
+        await V.sleep(420);
+        continue;
       }
-      if (videoId) {
-        const url = await getCachedTimedtextUrl(videoId, 1200);
-        if (url) {
-          log("PIPELINE | B0.5 OK — đã có URL timedtext (session)");
-          await V.sleep(250);
-          return;
+      try {
+        const { url, status } = await getCachedTimedtextUrl(videoId, 1200);
+        if (url && typeof status === "number") {
+          console.log("PIPELINE | B0.5 — cache capture HTTP " + status + " - " + url);
         }
+        if (url) {
+          const cues = await fetchTimedtextCues(url, {});
+          if (cues.length) {
+            log("PIPELINE | B0.5 OK — cues=" + cues.length);
+            await V.sleep(250);
+            return;
+          }
+          await V.sleep(320);
+          continue;
+        }
+        await V.sleep(420);
+      } catch (e) {
+        log("PIPELINE | B0.5 — lỗi (429/mạng/…):", String(e?.message || e));
+        await V.sleep(500);
       }
-      await V.sleep(420);
     }
     log("PIPELINE | B0.5 — hết thời gian chờ, vẫn chạy B1");
   }

@@ -23,6 +23,8 @@
 
   function sanitizeSubtitleText(raw) {
     let s = String(raw || "");
+    s = s.replace(/\([^)]*\)/g, " ");
+    s = s.replace(/（[^）]*）/g, " ");
     s = s.replace(/\[(?:[^\]\r\n]{1,80})\]/g, " ");
     s = s.replace(/(?:^|\s)(?:>>|<<|>|<)+(?:\s|$)/g, " ");
     s = s.replace(/(?:^|\s)(?:\.{3,}|…+)(?=\s|$)/g, " ");

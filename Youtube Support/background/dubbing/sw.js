@@ -1,10 +1,10 @@
 import { fetchTranscript } from "./vendor/youtube-transcript.esm.js";
 import {
-  DEFAULT_SETTINGS,
   STORAGE_KEY,
   MESSAGE_TYPES,
   TIMEDTEXT_SESSION_KEY,
-  normalizeTargetLang
+  normalizeTargetLang,
+  buildPersistedStoragePayload
 } from "../../content/dubbing/core/extension-settings-esm.js";
 
 const MAX_VIDEO_CACHE = 40;
@@ -55,7 +55,9 @@ function transcriptLibItemsToCues(items) {
 
 async function ensureSettings() {
   const r = await chrome.storage.local.get(STORAGE_KEY);
-  if (!r[STORAGE_KEY]) await chrome.storage.local.set({ [STORAGE_KEY]: DEFAULT_SETTINGS });
+  if (!r[STORAGE_KEY]) {
+    await chrome.storage.local.set({ [STORAGE_KEY]: buildPersistedStoragePayload({}) });
+  }
 }
 
 function videoIdFromTimedtextUrl(urlStr) {

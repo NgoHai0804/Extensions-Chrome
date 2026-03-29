@@ -23,6 +23,8 @@
     try {
       const tl = settings && settings.targetLang != null ? settings.targetLang : "vi";
       const hint = mapTargetLangToCcHint(tl);
+      const cur = document.documentElement.getAttribute(CC.ATTR_LANG);
+      if (cur === hint) return;
       document.documentElement.setAttribute(CC.ATTR_LANG, hint);
     } catch {
       /* ignore */

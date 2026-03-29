@@ -1,8 +1,18 @@
-/* Chạy trong MAIN world (inject từ SW khi bật chặn quảng cáo). */
+/* Chạy trong MAIN world. Chỉ chặn khi window.__ythubAdblockUserWant !== false (content script đồng bộ từ chrome.storage.local). */
 (function ythubMainWorldAdblock() {
   if (!location.hostname.includes("youtube.com")) return;
   if (window.__ythubMainAdblockInstalled) return;
   window.__ythubMainAdblockInstalled = true;
+
+  function userWantsAdblock() {
+    try {
+      return globalThis.__ythubAdblockUserWant !== false;
+    } catch {
+      return true;
+    }
+  }
+
+  const nativeJsonParse = JSON.parse;
 
   const AD_KEYS = new Set([
     "adPlacements",
@@ -34,7 +44,7 @@
   }
 
   function patchObject(payload) {
-    if (!payload || typeof payload !== "object") return payload;
+    if (!userWantsAdblock() || !payload || typeof payload !== "object") return payload;
     try {
       pruneAdsDeep(payload);
       if (payload.playerResponse) pruneAdsDeep(payload.playerResponse);
@@ -45,8 +55,9 @@
   }
 
   function sanitizeJsonText(text) {
+    if (!userWantsAdblock()) return text;
     try {
-      const obj = JSON.parse(text);
+      const obj = nativeJsonParse(text);
       pruneAdsDeep(obj);
       return JSON.stringify(obj);
     } catch {
@@ -63,6 +74,7 @@
   }
 
   function nukeInitialFields() {
+    if (!userWantsAdblock()) return;
     try {
       if (window.ytInitialPlayerResponse) {
         delete window.ytInitialPlayerResponse.adPlacements;
@@ -86,7 +98,7 @@
         return current;
       },
       set(v) {
-        current = patchObject(v);
+        current = userWantsAdblock() ? patchObject(v) : v;
       }
     });
     if (current) current = patchObject(current);
@@ -98,7 +110,7 @@
     "yt-navigate-finish",
     () => {
       try {
-        if (window.ytInitialPlayerResponse) patchObject(window.ytInitialPlayerResponse);
+        if (userWantsAdblock() && window.ytInitialPlayerResponse) patchObject(window.ytInitialPlayerResponse);
       } catch {
         /* ignore */
       }
@@ -109,6 +121,7 @@
   const nativeFetch = window.fetch;
   window.fetch = async function patchedFetch(...args) {
     const res = await nativeFetch.apply(this, args);
+    if (!userWantsAdblock()) return res;
     try {
       const url = args[0] instanceof Request ? args[0].url : String(args[0] || "");
       if (!shouldPatchUrl(url)) return res;
@@ -140,7 +153,7 @@
 
   XMLHttpRequest.prototype.send = function patchedSend(body) {
     try {
-      if (!this.__ythubXhrPatch) {
+      if (!userWantsAdblock() || !this.__ythubXhrPatch) {
         return nativeXhrSend.call(this, body);
       }
       const orig = this.onreadystatechange;
@@ -171,8 +184,8 @@
     }
   };
 
-  const nativeJsonParse = JSON.parse;
   JSON.parse = function patchedJsonParse(...args) {
+    if (!userWantsAdblock()) return nativeJsonParse.apply(this, args);
     const parsed = nativeJsonParse.apply(this, args);
     try {
       if (parsed && typeof parsed === "object") pruneAdsDeep(parsed);

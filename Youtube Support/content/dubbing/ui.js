@@ -4,6 +4,7 @@
   if (!V) return;
 
   const { ui, uiModule, state } = V;
+  const core = window.__YTDUB_CORE;
 
   function findYtpRightControls() {
     const selectors = [
@@ -20,6 +21,7 @@
   }
 
   function mountOrFallbackBtn() {
+    window.__YTDUB_CORE?.syncUiTranslateButtonRef?.();
     if (uiModule?.mountOrFallbackBtn) {
       uiModule.mountOrFallbackBtn();
       return;
@@ -27,14 +29,33 @@
     if (!ui.btn) return;
     const host = findYtpRightControls();
     if (host) {
-      host.prepend(ui.btn);
+      try {
+        host.querySelectorAll("button.ytdub2-btn").forEach((n) => {
+          if (n !== ui.btn) n.remove();
+        });
+      } catch {
+        /* ignore */
+      }
+      const needsPrepend =
+        ui.btn.parentElement !== host || host.firstElementChild !== ui.btn;
+      if (needsPrepend) host.prepend(ui.btn);
       ui.btn.classList.remove("ytdub2-fallback");
       if (ui.mountObserver) {
         ui.mountObserver.disconnect();
         ui.mountObserver = null;
       }
     } else {
-      if (!document.body.contains(ui.btn)) document.body.appendChild(ui.btn);
+      const b = document.body || document.documentElement;
+      if (b) {
+        try {
+          b.querySelectorAll("button.ytdub2-btn").forEach((n) => {
+            if (n !== ui.btn) n.remove();
+          });
+        } catch {
+          /* ignore */
+        }
+        if (!b.contains(ui.btn)) b.appendChild(ui.btn);
+      }
       ui.btn.classList.add("ytdub2-fallback");
       V.startBtnMountObserver();
     }
@@ -46,10 +67,15 @@
       return;
     }
     if (ui.mountObserver) return;
+    let obsMountT = null;
     ui.mountObserver = new MutationObserver(() => {
-      mountOrFallbackBtn();
-      V.ensureLoaderHost();
-      V.ensureMsgOverlayHost();
+      if (obsMountT != null) clearTimeout(obsMountT);
+      obsMountT = setTimeout(() => {
+        obsMountT = null;
+        mountOrFallbackBtn();
+        V.ensureLoaderHost();
+        V.ensureMsgOverlayHost();
+      }, 100);
     });
     ui.mountObserver.observe(document.documentElement, { childList: true, subtree: true });
   }
@@ -83,7 +109,8 @@
       }
       ui.msgOverlay.classList.remove("ytdub2-msg-fallback-host");
     } else {
-      if (ui.msgOverlay.parentElement !== document.body) document.body.appendChild(ui.msgOverlay);
+      const b = document.body || document.documentElement;
+      if (b && ui.msgOverlay.parentElement !== b) b.appendChild(ui.msgOverlay);
       ui.msgOverlay.classList.add("ytdub2-msg-fallback-host");
     }
   }
@@ -97,6 +124,8 @@
       title = "Không thấy video";
     } else if (/Extension không hợp lệ/i.test(body)) {
       title = "Extension";
+    } else if (/vô hiệu nút phụ đề|không hỗ trợ phụ đề\/CC — YouTube/i.test(body)) {
+      title = "Không hỗ trợ phụ đề";
     }
     const isSubtitleIssue = /phụ đề|timedtext|caption|transcript|playerresponse|video id/i.test(body);
     const hasPlaybackLink = /youtube\.com\/account_playback/i.test(body);
@@ -118,15 +147,11 @@
     const tEl = ui.msgOverlay.querySelector(".ytdub2-msg-title");
     const bEl = ui.msgOverlay.querySelector(".ytdub2-msg-body");
     const okBtn = ui.msgOverlay.querySelector(".ytdub2-msg-ok");
-    const toMultilineHtml = (text) =>
-      String(text || "")
-        .replace(/&/g, "&amp;")
-        .replace(/</g, "&lt;")
-        .replace(/>/g, "&gt;")
-        .replace(/\r\n?/g, "\n")
-        .replace(/\n/g, "<br>");
     if (tEl) tEl.textContent = title;
-    if (bEl) bEl.innerHTML = toMultilineHtml(body);
+    if (bEl) {
+      if (core?.fillElementMultilinePlain) core.fillElementMultilinePlain(bEl, body);
+      else bEl.textContent = body;
+    }
     ui.msgOverlay.removeAttribute("hidden");
     ensureMsgOverlayHost();
     if (okBtn) {

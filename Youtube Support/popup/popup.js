@@ -1,4 +1,8 @@
-import { mergeExtensionSettings, STORAGE_KEY } from "../content/dubbing/core/extension-settings-esm.js";
+import {
+  mergeExtensionSettings,
+  STORAGE_KEY,
+  buildPersistedStoragePayload
+} from "../content/dubbing/core/extension-settings-esm.js";
 
 const $ = (id) => document.getElementById(id);
 
@@ -6,7 +10,7 @@ function buildLangListbox() {
   const sel = $("targetLang");
   const list = $("targetLangListbox");
   if (!sel || !list) return;
-  list.innerHTML = "";
+  while (list.firstChild) list.removeChild(list.firstChild);
   for (let i = 0; i < sel.options.length; i += 1) {
     const opt = sel.options[i];
     const li = document.createElement("li");
@@ -143,23 +147,39 @@ async function load() {
   syncVolLabel();
   syncSubtitleSwitch(s.showSubtitleOverlay !== false);
   syncAdblockSwitch(s.adblockEnabled !== false);
-  await chrome.storage.local.set({ [STORAGE_KEY]: s });
+  /** Chỉ lưu 3 khóa; nếu storage cũ có field thừa → thu gọn một lần. */
+  const cur = await chrome.storage.local.get(STORAGE_KEY);
+  const raw = cur[STORAGE_KEY];
+  if (raw == null || typeof raw !== "object") {
+    await chrome.storage.local.set({ [STORAGE_KEY]: buildPersistedStoragePayload({}) });
+  } else {
+    const keep = new Set(["adblockEnabled", "showSubtitleOverlay", "targetLang"]);
+    const hasExtra = Object.keys(raw).some((k) => !keep.has(k));
+    if (hasExtra) {
+      await chrome.storage.local.set({ [STORAGE_KEY]: buildPersistedStoragePayload(raw) });
+    }
+  }
 }
 
 /**
- * @param {Partial<{ targetLang: string; speechVolume: number; showSubtitleOverlay: boolean; adblockEnabled: boolean }>} [patch]
+ * @param {Partial<{ targetLang: string; showSubtitleOverlay: boolean; adblockEnabled: boolean }>} [patch]
  */
 async function persistSettings(patch = {}) {
-  const base = await readMergedSettings();
-  const settings = mergeExtensionSettings({
-    ...base,
-    targetLang: $("targetLang").value,
-    speechVolume: Number($("speechVolume").value),
-    showSubtitleOverlay: isSubtitleOverlayOn(),
+  const prev = mergeExtensionSettings((await chrome.storage.local.get(STORAGE_KEY))[STORAGE_KEY]);
+  const payload = buildPersistedStoragePayload({
+    ...patch,
     adblockEnabled: isAdblockOn(),
-    ...patch
+    showSubtitleOverlay: isSubtitleOverlayOn(),
+    targetLang: patch.targetLang != null ? patch.targetLang : $("targetLang").value
   });
-  await chrome.storage.local.set({ [STORAGE_KEY]: settings });
+  await chrome.storage.local.set({ [STORAGE_KEY]: payload });
+  if (prev.adblockEnabled !== payload.adblockEnabled) {
+    try {
+      await chrome.runtime.sendMessage({ type: "YTHUB_REFRESH_ADBLOCK" });
+    } catch {
+      /* SW có thể chưa sẵn sàng — onChanged vẫn xử lý khi đổi adblock */
+    }
+  }
 }
 
 $("tabConfig").addEventListener("click", () => setTab("config"));
@@ -197,7 +217,7 @@ document.addEventListener("keydown", (e) => {
 });
 
 $("speechVolume").addEventListener("input", syncVolLabel);
-$("speechVolume").addEventListener("change", () => persistSettings());
+$("speechVolume").addEventListener("change", syncVolLabel);
 
 $("toggleSubtitle").addEventListener("click", () => {
   syncSubtitleSwitch(!isSubtitleOverlayOn());

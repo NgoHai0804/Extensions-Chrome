@@ -85,14 +85,6 @@
       return out;
     };
 
-  const YTDUB_BTN_MARKUP_PREFIX =
-    '<span class="ytdub2-btn-icon" aria-hidden="true">' +
-    '<svg class="ytdub2-btn-icon-svg" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg">' +
-    '<path fill="currentColor" fill-opacity="0.95" d="M4.2 3.75v12.5L11.85 10 4.2 3.75z"/>' +
-    '<path fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" d="M13.15 6.15q2.95 3.85 0 7.7M15.35 3.95q4.25 6.05 0 12.1"/>' +
-    "</svg></span><span class=\"ytdub2-btn-label\">";
-  const YTDUB_BTN_MARKUP_SUFFIX = "</span>";
-
   const state = {
     settings: { ...DEFAULT_SETTINGS },
     snapshot: null,
@@ -107,7 +99,8 @@
     lastSpokenCue: -1,
     lastSpokenAt: -1,
     raf: null,
-    url: location.href,
+    /** playback.js ghi đè: khóa video (id) hoặc pathname — không phải full href. */
+    url: "",
     resumeVideoAfterLoad: false
   };
 
@@ -117,11 +110,13 @@
     ? Math.max(1, Math.floor(Number(DUBBING_CONFIG.subtitlePrefetchAhead)))
     : 3;
 
-  const ui = { btn: null, sub: null, loader: null, msgOverlay: null, mountObserver: null };
   const uiModule = CORE.createContentUi ? CORE.createContentUi() : null;
-  if (uiModule?.ui) Object.assign(ui, uiModule.ui);
+  /** Cùng một object với `uiModule.ui` khi có module — tránh `V.ui.btn` lệch `uiModule.ui.btn`. */
+  const ui =
+    uiModule?.ui ?? { btn: null, sub: null, loader: null, msgOverlay: null, mountObserver: null };
 
   const log = CORE.createLogger ? CORE.createLogger("[YTDUB-v3]") : () => {};
+  const traceYtdub = typeof CORE.traceYtdub === "function" ? CORE.traceYtdub.bind(CORE) : () => {};
 
   function extOk() {
     try {
@@ -144,8 +139,6 @@
     TARGET_LANG_TO_GOOGLE_TTS,
     DUBBING_CONFIG,
     chunkForGoogleTts,
-    YTDUB_BTN_MARKUP_PREFIX,
-    YTDUB_BTN_MARKUP_SUFFIX,
     state,
     env,
     ui,
@@ -154,6 +147,7 @@
     translateMutex: Promise.resolve(),
     PREFETCH_AHEAD,
     log,
+    traceYtdub,
     extOk,
 
     dubMediaVideoEl: null,

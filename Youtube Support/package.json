@@ -6,7 +6,11 @@
   "scripts": {
     "vendor": "node -e \"const fs=require('fs');const d='background/dubbing/vendor';fs.mkdirSync(d,{recursive:true});fs.copyFileSync('node_modules/youtube-transcript/dist/youtube-transcript.esm.js',d+'/youtube-transcript.esm.js');console.log(d+'/youtube-transcript.esm.js OK')\"",
     "build:icons": "node icons/generate-png.cjs",
-    "test": "echo \"No tests\" && exit 0"
+    "build": "node scripts/build-release.cjs",
+    "build:release": "node scripts/build-release.cjs",
+    "test": "echo \"No tests\" && exit 0",
+    "obfuscate": "javascript-obfuscator",
+    "minify": "terser"
   },
   "keywords": [],
   "author": "",
@@ -15,6 +19,9 @@
     "youtube-transcript": "^1.3.0"
   },
   "devDependencies": {
-    "sharp": "^0.34.5"
+    "esbuild": "^0.25.0",
+    "javascript-obfuscator": "^4.1.1",
+    "sharp": "^0.34.5",
+    "terser": "^5.39.0"
   }
 }

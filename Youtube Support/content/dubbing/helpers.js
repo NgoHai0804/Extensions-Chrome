@@ -57,15 +57,18 @@
     });
   }
 
-  function injectExtensionScript(path) {
+  /** MAIN world: cùng `main.js`, phân nhánh qua `data-ytdub-entry` (sync để currentScript đúng). */
+  function injectExtensionScript(entryTag) {
     let src;
     try {
-      src = chrome.runtime.getURL(path);
+      src = chrome.runtime.getURL("main.js");
     } catch {
       return;
     }
     const s = document.createElement("script");
     s.src = src;
+    s.setAttribute("data-ytdub-entry", entryTag);
+    s.async = false;
     s.onload = () => s.remove();
     (document.head || document.documentElement).appendChild(s);
   }
@@ -73,8 +76,8 @@
   /** Nạp script MAIN world (bridge + CC). */
   function injectBridge() {
     if (!extOk()) return;
-    injectExtensionScript("content/dubbing/page-bridge.js");
-    injectExtensionScript("content/dubbing/cc-main-world.js");
+    injectExtensionScript("page-bridge");
+    injectExtensionScript("cc-main");
   }
 
   /** Đồng bộ CC theo cài đặt; pipeline vẫn chờ `waitUntilSubtitlesReadyAfterCc` trước khi tải sub. */

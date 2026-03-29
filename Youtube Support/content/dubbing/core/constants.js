@@ -2,6 +2,9 @@
   const core = (window.__YTDUB_CORE = window.__YTDUB_CORE || {});
 
   core.SNAPSHOT_MSG = "YTDUB_V2_SNAPSHOT";
+  /** Một nút Dịch duy nhất — DOM + `V.ui.btn` đồng bộ qua `syncUiTranslateButtonRef`. */
+  core.YTDUB_TRANSLATE_SLOT = "main";
+  core.YTDUB_TRANSLATE_BTN_SELECTOR = 'button.ytdub2-btn[data-ytdub-translate-slot="main"]';
   core.MSG_TRANSLATE = "TRANSLATE_TEXTS";
   core.MSG_CACHED_TT = "GET_CACHED_TIMEDTEXT";
   core.MSG_FETCH_YT_LIB = "FETCH_YT_TRANSCRIPT_LIB";

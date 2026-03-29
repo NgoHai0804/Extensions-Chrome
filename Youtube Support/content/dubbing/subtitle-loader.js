@@ -293,6 +293,101 @@
     return false;
   }
 
+  /** Đã gắn track phụ đề/CC trên video (có thể cues chưa nạp). */
+  function videoHasCaptionTracksAttached() {
+    const video = V.getVideo();
+    if (!video?.textTracks?.length) return false;
+    for (let i = 0; i < video.textTracks.length; i += 1) {
+      const tr = video.textTracks[i];
+      if (tr.kind === "subtitles" || tr.kind === "captions") return true;
+    }
+    return false;
+  }
+
+  /**
+   * Ưu tiên nút CC trong `#movie_player` — `document.querySelector('button.ytp-subtitles-button')`
+   * có thể trúng nút ẩn/miniplayer khác `aria-pressed` → làm mờ nút Dịch nhầm.
+   */
+  function queryYtpSubtitlesButton() {
+    const tryIn = (root) => {
+      if (!root?.querySelector) return null;
+      const b = root.querySelector("button.ytp-subtitles-button");
+      return b || null;
+    };
+    const mp = document.querySelector("#movie_player");
+    const inMp = tryIn(mp);
+    if (inMp) return inMp;
+    const players = document.querySelectorAll("#movie_player, .html5-video-player");
+    for (let i = 0; i < players.length; i += 1) {
+      const b = tryIn(players[i]);
+      if (b) {
+        const r = b.getBoundingClientRect();
+        if (r.width > 2 && r.height > 2) return b;
+      }
+    }
+    const all = document.querySelectorAll("button.ytp-subtitles-button");
+    for (let j = 0; j < all.length; j += 1) {
+      const b = all[j];
+      const r = b.getBoundingClientRect();
+      if (r.width > 2 && r.height > 2) return b;
+    }
+    return all.length ? all[0] : null;
+  }
+
+  /**
+   * Đồng bộ sáng/mờ nút Dịch với `aria-pressed` nút CC (bật CC = sáng hơn).
+   */
+  function applyTranslateButtonCcMirror(extBtn) {
+    if (!extBtn) return;
+    const ytp = queryYtpSubtitlesButton();
+    if (!ytp) {
+      extBtn.removeAttribute("data-cc-pressed-mirror");
+      return;
+    }
+    if (ytp.getAttribute("aria-pressed") === "true") extBtn.setAttribute("data-cc-pressed-mirror", "1");
+    else if (ytp.getAttribute("aria-pressed") === "false") extBtn.setAttribute("data-cc-pressed-mirror", "0");
+    else extBtn.removeAttribute("data-cc-pressed-mirror");
+  }
+
+  /**
+   * Chỉ nút CC: `aria-disabled="true"` → không có tín hiệu; `aria-pressed="true"` → có.
+   * @returns {boolean|null}
+   */
+  function ytpSubtitlesButtonCaptionUiHint() {
+    const btn = queryYtpSubtitlesButton();
+    if (!btn) return null;
+    try {
+      if (btn.getAttribute("aria-disabled") === "true") return false;
+      if (btn.getAttribute("aria-pressed") === "true") return true;
+      return null;
+    } catch {
+      return null;
+    }
+  }
+
+  /**
+   * Nút CC trên player: `aria-disabled="true"` → YouTube báo không có phụ đề/CC cho video này.
+   * Luôn ưu tiên trước latch `navStickySubtitlesOk` trong playback để không bấm Dịch nhầm.
+   */
+  function captionUiExplicitlyUnsupported() {
+    return ytpSubtitlesButtonCaptionUiHint() === false;
+  }
+
+  /**
+   * Cho phép bật nút Dịch: track; hoặc nút CC (aria-disabled / aria-pressed); hoặc playerResponse.
+   */
+  function hasSubtitlesSignal() {
+    if (videoTextTracksHaveCues()) return true;
+    if (videoHasCaptionTracksAttached()) return true;
+
+    const uiHint = ytpSubtitlesButtonCaptionUiHint();
+    if (uiHint === false) return false;
+    if (uiHint === true) return true;
+
+    const pr = state.snapshot?.playerResponse;
+    return captionTracksFromPr(pr).length > 0;
+  }
+
   /** Chờ đến khi có cues trên player hoặc có URL timedtext trong cache (tối đa maxWaitMs). */
   async function waitUntilSubtitlesReadyAfterCc(videoId, maxWaitMs) {
     const max = Math.max(4000, Math.min(120000, Number(maxWaitMs) || 60000));
@@ -434,6 +529,10 @@
     orderCaptionTracks,
     loadSubtitleCues,
     waitUntilSubtitlesReadyAfterCc,
-    videoTextTracksHaveCues
+    videoTextTracksHaveCues,
+    applyTranslateButtonCcMirror,
+    ytpSubtitlesButtonCaptionUiHint,
+    captionUiExplicitlyUnsupported,
+    hasSubtitlesSignal
   });
 })();

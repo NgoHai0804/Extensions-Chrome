@@ -24,7 +24,8 @@
   letter-spacing: 0.02em;
   cursor: pointer;
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.45);
-  transition: transform 0.12s ease, opacity 0.12s ease, filter 0.12s ease;
+  /* Không transition opacity/filter: disabled dao động sẽ không “fade” nhấp nháy */
+  transition: transform 0.12s ease;
 }
 
 .ytdub2-btn-icon {
@@ -78,8 +79,34 @@
 }
 
 .ytdub2-btn:disabled {
-  opacity: 0.65;
+  opacity: 0.42;
+  filter: grayscale(0.5) brightness(0.92);
+  cursor: not-allowed;
+}
+
+/* Chưa có phụ đề: chỉ làm mờ, vẫn chữ «Dịch» */
+.ytdub2-btn[data-subtitles-ready="0"][data-phase="idle"]:disabled {
+  opacity: 0.38;
+  filter: grayscale(0.55) brightness(0.88);
+}
+
+.ytdub2-btn[data-phase="loading"]:disabled {
+  opacity: 0.7;
+  filter: none;
   cursor: wait;
+}
+
+/* Theo nút CC: CC tắt → hơi mờ; CC bật (mirror 1) → không áp dụng mờ */
+.ytdub2-btn[data-phase="idle"][data-cc-pressed-mirror="0"]:not(:disabled),
+.ytdub2-btn[data-phase="error"][data-cc-pressed-mirror="0"]:not(:disabled) {
+  opacity: 0.58;
+  filter: grayscale(0.35) brightness(0.93);
+}
+
+.ytdub2-btn[data-phase="idle"][data-cc-pressed-mirror="1"]:not(:disabled),
+.ytdub2-btn[data-phase="error"][data-cc-pressed-mirror="1"]:not(:disabled) {
+  opacity: 1;
+  filter: none;
 }
 
 .ytdub2-btn.ytdub2-idle,

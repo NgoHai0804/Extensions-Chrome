@@ -235,6 +235,18 @@ export function mergeExtensionSettings(raw) {
   return merged;
 }
 
+/**
+ * Chỉ lưu 3 khóa vào `chrome.storage.local` — còn lại mỗi lần đọc hợp nhất với DEFAULT_SETTINGS.
+ */
+export function buildPersistedStoragePayload(raw) {
+  const m = mergeExtensionSettings(raw && typeof raw === "object" ? raw : {});
+  return {
+    adblockEnabled: m.adblockEnabled,
+    showSubtitleOverlay: m.showSubtitleOverlay,
+    targetLang: m.targetLang
+  };
+}
+
 /** Session: videoId → { url, ts } */
 export const TIMEDTEXT_SESSION_KEY = "ytdubTimedtextByVideo";
 

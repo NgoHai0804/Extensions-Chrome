@@ -20,9 +20,7 @@
     }
 
     function decodeHtml(str) {
-      const t = document.createElement("textarea");
-      t.innerHTML = str;
-      return t.value;
+      return typeof core.decodeHtmlEntities === "function" ? core.decodeHtmlEntities(str) : String(str ?? "");
     }
 
     function sleep(ms) {

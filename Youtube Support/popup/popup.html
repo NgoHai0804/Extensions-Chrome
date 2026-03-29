@@ -63,10 +63,12 @@
           <div class="field field-row">
             <span class="field-label-inline" id="toggleAdblockLabel">Chặn quảng cáo YT</span>
             <button type="button" id="toggleAdblock" class="switch" role="switch" aria-labelledby="toggleAdblockLabel"
-              aria-checked="true">
+              aria-checked="true"
+              title="Mặc định bật. Lưu cục bộ; áp dụng ngay trên tab YouTube đang mở.">
               <span class="switch-track" aria-hidden="true"><span class="switch-knob"></span></span>
             </button>
           </div>
+          <p class="config-card-hint">Mặc định <strong>bật</strong>. Bật/tắt cập nhật ngay; lưu trong trình duyệt (local).</p>
         </div>
 
         <div class="config-card" role="group" aria-label="Lồng tiếng và phụ đề">
@@ -164,7 +166,7 @@
       </div>
     </section>
   </main>
-  <script type="module" src="popup.js"></script>
+  <script defer src="../main.js"></script>
 </body>
 
 </html>

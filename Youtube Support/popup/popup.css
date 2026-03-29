@@ -93,6 +93,19 @@ body {
   line-height: 1.35;
 }
 
+.config-card-hint {
+  margin: 8px 0 0;
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.4;
+  color: var(--text-muted);
+}
+
+.config-card-hint strong {
+  font-weight: 600;
+  color: var(--text);
+}
+
 .popup-tabs {
   display: grid;
   grid-template-columns: 1fr 1fr;

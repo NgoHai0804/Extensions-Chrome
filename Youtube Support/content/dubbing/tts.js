@@ -97,12 +97,9 @@
     }
   }
 
-  function setPhase(p) {
-    state.phase = p;
-    if (p === "loading") V.setLoadingOverlay(true);
-    else V.setLoadingOverlay(false);
-
-    if (!ui.btn) return;
+  /** Gắn nhãn/title nút theo phase (dùng lại sau sync DOM — tránh nút hiện «Dịch» khi vẫn đang đọc). */
+  function applyTranslateButtonVisualForPhase(p) {
+    if (!ui.btn?.isConnected) return;
     ui.btn.dataset.phase = p;
     const labels = {
       idle: "Dịch",
@@ -118,6 +115,28 @@
       p === "playing"
         ? "Tắt đọc phụ đề / bỏ tắt tiếng video"
         : "Tạm dừng video → tải phụ đề & dịch → phát lại đồng bộ";
+  }
+
+  /** Chỉ các phase «đang chạy pipeline» — không đè title idle/error do refreshTranslateButtonAvailability đặt. */
+  function repaintTranslateButtonFace() {
+    const p = state.phase;
+    if (p !== "playing" && p !== "loading" && p !== "translating") return;
+    applyTranslateButtonVisualForPhase(p);
+  }
+
+  function setPhase(p) {
+    const prev = state.phase;
+    if (prev === p) return;
+    V.traceYtdub("PHASE |", prev, "→", p, "| href=" + String(location.href || "").slice(0, 100));
+    state.phase = p;
+    if (p === "loading") V.setLoadingOverlay(true);
+    else V.setLoadingOverlay(false);
+
+    window.__YTDUB_CORE?.syncUiTranslateButtonRef?.();
+    applyTranslateButtonVisualForPhase(p);
+    if (typeof V.refreshTranslateButtonAvailability === "function") {
+      V.refreshTranslateButtonAvailability();
+    }
   }
 
   function googleTtsTl() {
@@ -655,6 +674,8 @@
     resumeTtsAudioContext,
     stopTtsOutput,
     setPhase,
+    applyTranslateButtonVisualForPhase,
+    repaintTranslateButtonFace,
     googleTtsTl,
     invalidateTtsLogState,
     clearTtsCaches,

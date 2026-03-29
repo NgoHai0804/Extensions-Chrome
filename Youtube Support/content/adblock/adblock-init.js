@@ -1,5 +1,6 @@
 /**
- * Chặn quảng cáo — bật/tắt theo chrome.storage (cùng key với popup).
+ * Chặn quảng cáo — CSS + skip nút; bật/tắt theo storage (cùng popup / bootstrap / DNR).
+ * Mặc định: bật (không tắt rõ ràng trong object → coi như bật).
  */
 (function ythubAdblockInit() {
   const w = window;
@@ -8,11 +9,27 @@
 
   w.__YTHUB_ADBLOCK = w.__YTHUB_ADBLOCK || {};
 
+  function adblockOnFromRaw(raw) {
+    const m = raw && typeof raw === "object" ? raw : {};
+    const ad = m.adblockEnabled;
+    return !(ad === false || ad === "false" || ad === 0 || ad === "0");
+  }
+
   function applyFromSettings(raw) {
-    const merged = raw && typeof raw === "object" ? raw : {};
-    const on = merged.adblockEnabled !== false;
+    const on = adblockOnFromRaw(raw);
     document.documentElement.classList.toggle("ythub-adblock-on", on);
     document.documentElement.classList.toggle("ythub-adblock-off", !on);
+  }
+
+  function injectMainWorldPreference(on) {
+    try {
+      chrome.runtime.sendMessage(
+        { type: "YTHUB_SET_MAIN_ADBLOCK_FLAG", enabled: on },
+        () => void chrome.runtime.lastError
+      );
+    } catch {
+      /* ignore */
+    }
   }
 
   let skipObserver = null;
@@ -53,18 +70,29 @@
   async function init() {
     try {
       const r = await chrome.storage.local.get(STORAGE_KEY);
-      applyFromSettings(r[STORAGE_KEY]);
+      const raw = r[STORAGE_KEY];
+      injectMainWorldPreference(adblockOnFromRaw(raw));
+      applyFromSettings(raw);
     } catch {
+      injectMainWorldPreference(adblockOnFromRaw({}));
       applyFromSettings({});
     }
 
-    chrome.storage.onChanged.addListener((changes, area) => {
-      if (area !== "local" || !changes[STORAGE_KEY]) return;
-      applyFromSettings(changes[STORAGE_KEY].newValue);
-      const on = !changes[STORAGE_KEY].newValue || changes[STORAGE_KEY].newValue.adblockEnabled !== false;
-      if (on) startSkipWatcher();
-      else stopSkipWatcher();
-    });
+    try {
+      chrome.storage?.onChanged?.addListener((changes, area) => {
+        if (area !== "local" || !changes[STORAGE_KEY]) return;
+        /** Cùng key với popup: phụ đề overlay / ngôn ngữ / volume — không đụng DOM adblock (tránh reflow, nháy nút Dịch). */
+        const adOld = adblockOnFromRaw(changes[STORAGE_KEY].oldValue);
+        const adNew = adblockOnFromRaw(changes[STORAGE_KEY].newValue);
+        if (adOld === adNew) return;
+        injectMainWorldPreference(adNew);
+        applyFromSettings(changes[STORAGE_KEY].newValue);
+        if (adNew) startSkipWatcher();
+        else stopSkipWatcher();
+      });
+    } catch {
+      /* Một số ngữ cảnh / trình duyệt không expose storage trong content script */
+    }
 
     const on = document.documentElement.classList.contains("ythub-adblock-on");
     if (on) startSkipWatcher();

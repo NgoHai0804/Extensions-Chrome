@@ -1,21 +1,12 @@
 /**
- * Chặn quảng cáo YouTube: DNR + inject MAIN (fetch/XHR/JSON prune).
- * Bật/tắt theo chrome.storage (adblockEnabled).
+ * Chặn quảng cáo YouTube: DNR (mạng). Patch MAIN (fetch/XHR) do content script
+ * `adblock-bootstrap.js` inject sớm — không phụ thuộc SW.
  */
 import { STORAGE_KEY, mergeExtensionSettings } from "../../content/dubbing/core/extension-settings-esm.js";
 
-const YT_URL_PATTERNS = ["*://*.youtube.com/*", "*://youtube.com/*"];
 const YT_INITIATORS = ["youtube.com", "www.youtube.com", "m.youtube.com"];
 const RULE_ID_START = 994500;
 const RULE_ID_END = 994511;
-const INJECT_COOLDOWN_MS = 1200;
-const MAIN_PATCH_FILE = "content/adblock/main-world-patch.js";
-
-const lastInjectByTab = new Map();
-
-function isYouTubeUrl(url) {
-  return typeof url === "string" && /:\/\/([a-z0-9-]+\.)?youtube\.com\//i.test(url);
-}
 
 function buildDynamicRules() {
   return [
@@ -166,43 +157,11 @@ async function adblockEnabledFromStorage() {
   }
 }
 
-async function injectMainPatch(tabId) {
-  if (!Number.isInteger(tabId) || tabId < 0) return;
-  const now = Date.now();
-  const last = lastInjectByTab.get(tabId) || 0;
-  if (now - last < INJECT_COOLDOWN_MS) return;
-  lastInjectByTab.set(tabId, now);
-  try {
-    await chrome.scripting.executeScript({
-      target: { tabId },
-      world: "MAIN",
-      injectImmediately: true,
-      files: [MAIN_PATCH_FILE]
-    });
-  } catch {
-    /* tab có thể chưa sẵn sàng hoặc không inject được */
-  }
-}
-
-async function injectAllYoutubeTabs() {
-  const tabs = await chrome.tabs.query({ url: YT_URL_PATTERNS });
-  await Promise.all(
-    tabs
-      .map((t) => t.id)
-      .filter((id) => Number.isInteger(id))
-      .map((id) => injectMainPatch(id))
-  );
-}
-
 async function refreshYoutubeAdblock() {
   const on = await adblockEnabledFromStorage();
   try {
-    if (on) {
-      await applyAdblockRules();
-      await injectAllYoutubeTabs();
-    } else {
-      await removeAdblockRules();
-    }
+    if (on) await applyAdblockRules();
+    else await removeAdblockRules();
   } catch (e) {
     console.warn("[YTHUB][adblock] refresh failed", e);
   }
@@ -216,23 +175,62 @@ chrome.runtime.onStartup.addListener(() => {
   void refreshYoutubeAdblock();
 });
 
+/**
+ * Phát hiện đổi chặn QC: so khóa `adblockEnabled` trên object thô (tránh bỏ sót khi trước/sau merge cùng `true`
+ * nhưng lần đầu mới ghi key — khi đó DNR chưa bật).
+ */
+function storageAdblockEffectivelyChanged(oldRaw, newRaw) {
+  const o = oldRaw && typeof oldRaw === "object" ? oldRaw : {};
+  const n = newRaw && typeof newRaw === "object" ? newRaw : {};
+  const oHas = Object.prototype.hasOwnProperty.call(o, "adblockEnabled");
+  const nHas = Object.prototype.hasOwnProperty.call(n, "adblockEnabled");
+  if (oHas !== nHas) return true;
+  if (oHas && nHas && o.adblockEnabled !== n.adblockEnabled) return true;
+  const e1 = mergeExtensionSettings(o).adblockEnabled;
+  const e2 = mergeExtensionSettings(n).adblockEnabled;
+  return e1 !== e2;
+}
+
 chrome.storage.onChanged.addListener((changes, area) => {
   if (area !== "local" || !changes[STORAGE_KEY]) return;
+  if (!storageAdblockEffectivelyChanged(changes[STORAGE_KEY].oldValue, changes[STORAGE_KEY].newValue)) {
+    return;
+  }
   void refreshYoutubeAdblock();
 });
 
-chrome.webNavigation.onCommitted.addListener((details) => {
-  if (details.frameId !== 0 || !isYouTubeUrl(details.url)) return;
-  void (async () => {
-    if (await adblockEnabledFromStorage()) void injectMainPatch(details.tabId);
-  })();
-});
+const MSG_REFRESH_ADBLOCK = "YTHUB_REFRESH_ADBLOCK";
+const MSG_SET_MAIN_ADBLOCK_FLAG = "YTHUB_SET_MAIN_ADBLOCK_FLAG";
 
-chrome.webNavigation.onHistoryStateUpdated.addListener((details) => {
-  if (details.frameId !== 0 || !isYouTubeUrl(details.url)) return;
-  void (async () => {
-    if (await adblockEnabledFromStorage()) void injectMainPatch(details.tabId);
-  })();
+chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  if (msg?.type === MSG_SET_MAIN_ADBLOCK_FLAG) {
+    const tabId = sender.tab?.id;
+    if (!Number.isInteger(tabId)) {
+      sendResponse({ ok: false });
+      return false;
+    }
+    const enabled = Boolean(msg.enabled);
+    void chrome.scripting
+      .executeScript({
+        target: { tabId },
+        world: "MAIN",
+        injectImmediately: true,
+        func: (v) => {
+          try {
+            window.__ythubAdblockUserWant = v;
+          } catch {
+            /* ignore */
+          }
+        },
+        args: [enabled]
+      })
+      .then(() => sendResponse({ ok: true }))
+      .catch(() => sendResponse({ ok: false }));
+    return true;
+  }
+  if (msg?.type !== MSG_REFRESH_ADBLOCK) return false;
+  void refreshYoutubeAdblock().then(() => sendResponse({ ok: true })).catch(() => sendResponse({ ok: false }));
+  return true;
 });
 
 void refreshYoutubeAdblock();

@@ -208,15 +208,9 @@
       const jsonStart = trimmed.search(/[\[{]/);
       if (jsonStart >= 0 && jsonStart < 40) trimmed = trimmed.slice(jsonStart);
       const first = trimmed[0];
-      if (first === "{" || first === "[") {
-        try {
-          const j = parseJson3(JSON.parse(trimmed));
-          if (j.length) return j;
-        } catch {
-          /* continue */
-        }
-      }
-      if (trimmed.includes('"events"') && trimmed.includes("tStartMs")) {
+      const looksJson3 =
+        first === "{" || first === "[" || (trimmed.includes('"events"') && trimmed.includes("tStartMs"));
+      if (looksJson3) {
         try {
           const j = parseJson3(JSON.parse(trimmed));
           if (j.length) return j;
@@ -233,7 +227,10 @@
       return [];
     }
 
-    async function fetchTimedtextCues(trackBaseUrl) {
+    /** @param {{ signal?: AbortSignal }} [opts] */
+    async function fetchTimedtextCues(trackBaseUrl, opts) {
+      const signal = opts?.signal;
+      if (signal?.aborted) return [];
       const abs =
         trackBaseUrl.startsWith("http://") || trackBaseUrl.startsWith("https://")
           ? trackBaseUrl
@@ -242,7 +239,7 @@
       const inflight = timedtextInflight.get(dedupeKey);
       if (inflight) return inflight;
 
-      const promise = enqueueTimedtextFetch(() => fetchTimedtextCuesSerialized(abs));
+      const promise = enqueueTimedtextFetch(() => fetchTimedtextCuesSerialized(abs, signal));
       timedtextInflight.set(dedupeKey, promise);
       promise.finally(() => {
         timedtextInflight.delete(dedupeKey);
@@ -250,30 +247,43 @@
       return promise;
     }
 
-    async function fetchTimedtextCuesSerialized(abs) {
-      const urls = [];
-      const seenU = new Set();
-      function pushUrl(u) {
-        if (!u || seenU.has(u)) return;
-        seenU.add(u);
-        urls.push(u);
-      }
-      pushUrl(abs);
-      for (const fmt of ["json3", "srv3", "srv1", "vtt"]) pushUrl(timedtextUrlWithFmt(abs, fmt));
+    async function fetchTimedtextCuesSerialized(abs, signal) {
+      if (signal?.aborted) return [];
+      const urls = [abs];
+      for (const fmt of ["json3", "srv3", "srv1", "vtt"]) urls.push(timedtextUrlWithFmt(abs, fmt));
 
       /** Không gửi cookie — baseUrl từ player thường đã ký; tránh kết hợp cookie + context extension bị nghi bot. */
-      const fetchOpts = { credentials: "omit" };
+      const baseFetchOpts = { credentials: "omit" };
 
+      const MAX_TIMEDTEXT_ATTEMPTS = 5;
       let lastErr = null;
       for (let u = 0; u < urls.length; u += 1) {
-        const url = urls[u];
-        for (let att = 0; att < 3; att += 1) {
+        if (signal?.aborted) return [];
+        let currentUrl = urls[u];
+        for (let att = 0; att < MAX_TIMEDTEXT_ATTEMPTS; att += 1) {
+          if (signal?.aborted) return [];
           try {
-            if (att) await sleep(450 + 350 * att);
+            if (att) await sleep(500 + 300 * att);
+            if (signal?.aborted) return [];
             await waitTimedtextRequestWindow();
-            const res = await fetch(url, fetchOpts);
+            if (signal?.aborted) return [];
+            const fetchOpts = signal ? { ...baseFetchOpts, signal } : baseFetchOpts;
+            const res = await fetch(currentUrl, fetchOpts);
             if (!res.ok) {
-              if (res.status === 429) pushTimedtextCooldown(att + u + 1);
+              if (res.status === 429) {
+                pushTimedtextCooldown(att + u + 1);
+                let hadTlang = false;
+                try {
+                  hadTlang = new URL(currentUrl, location.origin).searchParams.has("tlang");
+                } catch {
+                  hadTlang = /(?:^|[?&])tlang=/i.test(String(currentUrl));
+                }
+                if (hadTlang) {
+                  currentUrl = timedtextUrlWithParam(currentUrl, "tlang", null);
+                  log("timedtext 429: bỏ tlang, thử lại");
+                  continue;
+                }
+              }
               throw new Error(String(res.status));
             }
             const ct = (res.headers.get("content-type") || "").toLowerCase();
@@ -283,6 +293,7 @@
             const cues = parseTimedtextBody(body, "");
             if (cues.length) return cues;
           } catch (e) {
+            if (signal?.aborted) return [];
             lastErr = e;
           }
         }
@@ -304,35 +315,12 @@
       return out.filter((c) => c.end > c.start);
     }
 
-    function cuesFromTextTracks() {
-      const video = getVideo();
-      if (!video?.textTracks?.length) return [];
-      let best = [];
-      for (let i = 0; i < video.textTracks.length; i += 1) {
-        const tr = video.textTracks[i];
-        try {
-          if (tr.mode === "disabled") tr.mode = "hidden";
-        } catch {
-          /* ignore */
-        }
-        const ok = cuesFromOneTextTrack(tr);
-        if (ok.length > best.length) best = ok;
-      }
-      return best;
-    }
-
-    function clickYouTubeCcButton() {
-      const btn = document.querySelector("button.ytp-subtitles-button");
-      if (btn && btn.getAttribute("aria-pressed") === "false") {
-        btn.click();
-        log("Đã bật CC");
-        return true;
-      }
-      return false;
-    }
-
     async function loadCuesFromTextTracksOnly(maxMs) {
-      clickYouTubeCcButton();
+      const ccBtn = document.querySelector("button.ytp-subtitles-button");
+      if (ccBtn && ccBtn.getAttribute("aria-pressed") === "false") {
+        ccBtn.click();
+        log("Đã bật CC");
+      }
       const video = getVideo();
       const deadline = Date.now() + maxMs;
       while (Date.now() < deadline) {
@@ -351,14 +339,28 @@
             if (part.length >= 1) return part;
           }
         }
-        const merged = cuesFromTextTracks();
-        if (merged.length >= 1) return merged;
+        if (video?.textTracks?.length) {
+          let best = [];
+          for (let i = 0; i < video.textTracks.length; i += 1) {
+            const tr = video.textTracks[i];
+            try {
+              if (tr.mode === "disabled") tr.mode = "hidden";
+            } catch {
+              /* ignore */
+            }
+            const ok = cuesFromOneTextTrack(tr);
+            if (ok.length > best.length) best = ok;
+          }
+          if (best.length >= 1) return best;
+        }
         await sleep(280);
       }
       return [];
     }
 
-    async function loadCuesFromCaptionTracks(tracks) {
+    /** @param {{ signal?: AbortSignal }} [opts] */
+    async function loadCuesFromCaptionTracks(tracks, opts) {
+      const signal = opts?.signal;
       if (!tracks?.length) return null;
       const seen = new Set();
       const sequence = [];
@@ -377,28 +379,34 @@
         sequence.push(t);
       }
       for (let i = 0; i < sequence.length; i += 1) {
+        if (signal?.aborted) return null;
         const cap = sequence[i];
         const target = String(getTargetLang?.() || "vi");
         const targetBase = langBase(target);
         const capBase = langBase(cap.languageCode || "");
         const candidates = [];
-        const seenUrl = new Set();
-        function pushCandidate(url) {
-          if (!url || seenUrl.has(url)) return;
-          seenUrl.add(url);
-          candidates.push(url);
-        }
-
-        // Ưu tiên auto-translate tại nguồn timedtext theo targetLang của user.
+        const seenCand = new Set();
         if (targetBase && capBase && capBase !== targetBase) {
-          pushCandidate(timedtextUrlWithParam(cap.baseUrl, "tlang", target));
-          pushCandidate(timedtextUrlWithParam(cap.baseUrl, "tlang", targetBase));
+          const uT = timedtextUrlWithParam(cap.baseUrl, "tlang", target);
+          const uTb = timedtextUrlWithParam(cap.baseUrl, "tlang", targetBase);
+          if (uT && !seenCand.has(uT)) {
+            seenCand.add(uT);
+            candidates.push(uT);
+          }
+          if (uTb && !seenCand.has(uTb)) {
+            seenCand.add(uTb);
+            candidates.push(uTb);
+          }
         }
-        pushCandidate(cap.baseUrl);
+        if (cap.baseUrl && !seenCand.has(cap.baseUrl)) {
+          seenCand.add(cap.baseUrl);
+          candidates.push(cap.baseUrl);
+        }
 
         let cues = [];
         for (let u = 0; u < candidates.length; u += 1) {
-          cues = await fetchTimedtextCues(candidates[u]);
+          if (signal?.aborted) return null;
+          cues = await fetchTimedtextCues(candidates[u], opts);
           if (cues.length) break;
         }
         if (cues.length) return { cues, lang: cap.languageCode || cap.name?.simpleText || "" };

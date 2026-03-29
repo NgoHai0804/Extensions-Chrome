@@ -48,43 +48,48 @@
     return Math.max(0, Number(deadline || 0) - Date.now());
   }
 
-  async function firstSuccess(tasks, timeoutMs) {
-    if (!Array.isArray(tasks) || !tasks.length) return null;
+  /**
+   * Song song nhiều cách lấy sub; khi một kết quả OK hoặc hết timeout / tất cả thất bại
+   * thì `abort()` — không gọi thêm timedtext (fetch trong subtitle-utils) cho các coroutine còn lại.
+   * @param {Array<(signal: AbortSignal) => Promise<{ cues: unknown[], lang?: string }|null>>} taskFns
+   */
+  async function firstSuccess(taskFns, timeoutMs) {
+    if (!Array.isArray(taskFns) || !taskFns.length) return null;
+    const ac = new AbortController();
+    const { signal } = ac;
     return await new Promise((resolve) => {
       let settled = false;
-      let remaining = tasks.length;
-      const timer = setTimeout(() => {
+      let remaining = taskFns.length;
+      const finish = (value) => {
         if (settled) return;
         settled = true;
-        resolve(null);
-      }, Math.max(200, Number(timeoutMs) || 0));
+        clearTimeout(timer);
+        try {
+          ac.abort();
+        } catch {
+          /* ignore */
+        }
+        resolve(value);
+      };
+      const timer = setTimeout(() => finish(null), Math.max(200, Number(timeoutMs) || 0));
 
-      for (let i = 0; i < tasks.length; i += 1) {
+      for (let i = 0; i < taskFns.length; i += 1) {
+        const fn = taskFns[i];
         Promise.resolve()
-          .then(tasks[i])
+          .then(() => fn(signal))
           .then((v) => {
             if (settled) return;
             if (v && v.cues?.length) {
-              settled = true;
-              clearTimeout(timer);
-              resolve(v);
+              finish(v);
               return;
             }
             remaining -= 1;
-            if (remaining <= 0 && !settled) {
-              settled = true;
-              clearTimeout(timer);
-              resolve(null);
-            }
+            if (remaining <= 0 && !settled) finish(null);
           })
           .catch(() => {
             if (settled) return;
             remaining -= 1;
-            if (remaining <= 0) {
-              settled = true;
-              clearTimeout(timer);
-              resolve(null);
-            }
+            if (remaining <= 0 && !settled) finish(null);
           });
       }
     });
@@ -258,15 +263,17 @@
       return null;
     });
 
-  /** Hỏi URL timedtext từ cache session; dừng khi `Date.now() >= endAt` (ms). */
-  async function tryTimedtextFromSessionCacheLoop(videoId, methodPrefix, endAt) {
+  /** Hỏi URL timedtext từ cache session; dừng khi `Date.now() >= endAt` (ms) hoặc `signal` aborted. */
+  async function tryTimedtextFromSessionCacheLoop(videoId, methodPrefix, endAt, signal) {
     if (!videoId) return null;
     let n = 0;
     while (Date.now() < endAt) {
+      if (signal?.aborted) return null;
       const slice = Math.min(1500, Math.max(400, endAt - Date.now()));
       if (slice < 200) break;
       n += 1;
       const cached = await getCachedTimedtextUrl(videoId, slice);
+      if (signal?.aborted) return null;
       if (cached) {
         if (timedtextSignedUrlLikelyStale(cached)) {
           await V.sleep(280);
@@ -279,7 +286,8 @@
           continue;
         }
         timedtextUrlSeenAt.set(cached, now);
-        const c = await fetchTimedtextCues(cached);
+        if (signal?.aborted) return null;
+        const c = await fetchTimedtextCues(cached, { signal });
         const out = returnIfCues(`${methodPrefix} #${n}`, videoId, c, "");
         if (out) return out;
         await V.sleep(320);
@@ -432,112 +440,122 @@
   }
 
   async function loadSubtitleCues() {
-    const deadline = Date.now() + B1_TOTAL_BUDGET_MS;
-    const earlyId = V.videoIdFromUrlOnly();
+    const loadAc = new AbortController();
+    const loadSignal = loadAc.signal;
+    try {
+      const deadline = Date.now() + B1_TOTAL_BUDGET_MS;
+      const earlyId = V.videoIdFromUrlOnly();
 
-    if (earlyId && leftMs(deadline) > 800) {
-      const earlyEnd = Math.min(deadline, Date.now() + 12000);
-      const hit = await tryTimedtextFromSessionCacheLoop(earlyId, "webRequest-cache (đầu)", earlyEnd);
-      if (hit) return hit;
-    }
+      if (earlyId && leftMs(deadline) > 800) {
+        const earlyEnd = Math.min(deadline, Date.now() + 12000);
+        const hit = await tryTimedtextFromSessionCacheLoop(earlyId, "webRequest-cache (đầu)", earlyEnd, loadSignal);
+        if (hit) return hit;
+      }
 
-    if (leftMs(deadline) > 400) {
-      const out = await loadTextTracksWithRetries(
-        [550, 1100, 1900, 3000, 4800],
-        "HTMLVideoElement.textTracks",
-        earlyId || state.snapshot?.videoId || "—"
-      );
-      if (out) return out;
-    }
+      if (leftMs(deadline) > 400) {
+        const out = await loadTextTracksWithRetries(
+          [550, 1100, 1900, 3000, 4800],
+          "HTMLVideoElement.textTracks",
+          earlyId || state.snapshot?.videoId || "—"
+        );
+        if (out) return out;
+      }
 
-    const snapWait = Math.min(9500, leftMs(deadline));
-    const snapOk = snapWait > 120 ? await V.waitSnapshot(snapWait) : false;
-    let pr = state.snapshot?.playerResponse;
-    const videoId = V.resolveVideoId(pr) || earlyId;
-    if (!videoId) {
-      throw new Error("Không xác định được video ID — F5 hoặc mở đúng link watch/shorts.");
-    }
-    if (!snapOk) {
-      log("B1 | playerResponse chậm/timeout — vẫn thử fallback, videoId=", videoId);
-    }
+      const snapWait = Math.min(9500, leftMs(deadline));
+      const snapOk = snapWait > 120 ? await V.waitSnapshot(snapWait) : false;
+      let pr = state.snapshot?.playerResponse;
+      const videoId = V.resolveVideoId(pr) || earlyId;
+      if (!videoId) {
+        throw new Error("Không xác định được video ID — F5 hoặc mở đúng link watch/shorts.");
+      }
+      if (!snapOk) {
+        log("B1 | playerResponse chậm/timeout — vẫn thử fallback, videoId=", videoId);
+      }
 
-    let tracks = captionTracksFromPr(pr);
+      let tracks = captionTracksFromPr(pr);
 
-    const cachePollUntil = Math.min(deadline, Date.now() + 16000);
-    const phase1Timeout = Math.min(24000, leftMs(deadline));
-    const phase1 = await firstSuccess(
-      [
-        async () => {
-          if (!tracks.length) return null;
-          const rCap = await loadCuesFromCaptionTracks(tracks);
-          return rCap?.cues?.length ? rCap : null;
-        },
-        async () => tryTimedtextFromSessionCacheLoop(videoId, "webRequest-cache (p1)", cachePollUntil),
-        async () =>
-          loadTextTracksWithRetries([800, 1600, 2800, 4500, 7000], "HTMLVideoElement.textTracks (p1)", videoId),
-        async () => {
-          const byLib = await loadCuesFromYoutubeTranscriptLib(videoId);
-          return byLib?.cues?.length ? byLib : null;
-        }
-      ],
-      Math.max(600, phase1Timeout)
-    );
-    if (phase1) return phase1;
-
-    if (leftMs(deadline) > 700) {
-      log("B1 | làn 2 — chờ snapshot / thử lại…");
-      const w2 = Math.min(5500, leftMs(deadline));
-      if (w2 > 200) await V.waitSnapshot(w2);
-      pr = state.snapshot?.playerResponse;
-      tracks = captionTracksFromPr(pr);
-    }
-
-    if (leftMs(deadline) > 500) {
-      const cacheEnd2 = Math.min(deadline, Date.now() + 14000);
-      const phase2Timeout = Math.min(32000, leftMs(deadline));
-      const phase2 = await firstSuccess(
+      const cachePollUntil = Math.min(deadline, Date.now() + 16000);
+      const phase1Timeout = Math.min(24000, leftMs(deadline));
+      const phase1 = await firstSuccess(
         [
-          async () => {
+          async (sig) => {
             if (!tracks.length) return null;
-            const rCap = await loadCuesFromCaptionTracks(tracks);
+            const rCap = await loadCuesFromCaptionTracks(tracks, { signal: sig });
             return rCap?.cues?.length ? rCap : null;
           },
-          async () => tryTimedtextFromSessionCacheLoop(videoId, "webRequest-cache (L2)", cacheEnd2),
+          async (sig) => tryTimedtextFromSessionCacheLoop(videoId, "webRequest-cache (p1)", cachePollUntil, sig),
           async () =>
-            loadTextTracksWithRetries([3500, 6500, 10000], "HTMLVideoElement.textTracks (L2)", videoId),
+            loadTextTracksWithRetries([800, 1600, 2800, 4500, 7000], "HTMLVideoElement.textTracks (p1)", videoId),
           async () => {
             const byLib = await loadCuesFromYoutubeTranscriptLib(videoId);
             return byLib?.cues?.length ? byLib : null;
           }
         ],
-        Math.max(600, phase2Timeout)
+        Math.max(600, phase1Timeout)
       );
-      if (phase2) return phase2;
-    }
+      if (phase1) return phase1;
 
-    if (leftMs(deadline) > 400) {
-      const out = await loadTextTracksWithRetries(
-        [2800, 6000, 9500],
-        "HTMLVideoElement.textTracks (cuối)",
-        videoId
-      );
-      if (out) return out;
-    }
+      if (leftMs(deadline) > 700) {
+        log("B1 | làn 2 — chờ snapshot / thử lại…");
+        const w2 = Math.min(5500, leftMs(deadline));
+        if (w2 > 200) await V.waitSnapshot(w2);
+        pr = state.snapshot?.playerResponse;
+        tracks = captionTracksFromPr(pr);
+      }
 
-    if (leftMs(deadline) > 400) {
-      const lastEnd = Math.min(deadline, Date.now() + 11000);
-      const last = await tryTimedtextFromSessionCacheLoop(videoId, "webRequest-cache (L3)", lastEnd);
-      if (last) return last;
-    }
+      if (leftMs(deadline) > 500) {
+        const cacheEnd2 = Math.min(deadline, Date.now() + 14000);
+        const phase2Timeout = Math.min(32000, leftMs(deadline));
+        const phase2 = await firstSuccess(
+          [
+            async (sig) => {
+              if (!tracks.length) return null;
+              const rCap = await loadCuesFromCaptionTracks(tracks, { signal: sig });
+              return rCap?.cues?.length ? rCap : null;
+            },
+            async (sig) => tryTimedtextFromSessionCacheLoop(videoId, "webRequest-cache (L2)", cacheEnd2, sig),
+            async () =>
+              loadTextTracksWithRetries([3500, 6500, 10000], "HTMLVideoElement.textTracks (L2)", videoId),
+            async () => {
+              const byLib = await loadCuesFromYoutubeTranscriptLib(videoId);
+              return byLib?.cues?.length ? byLib : null;
+            }
+          ],
+          Math.max(600, phase2Timeout)
+        );
+        if (phase2) return phase2;
+      }
 
-    if (!tracks.length) {
-      throw new Error(
-        "Player không có danh sách phụ đề.\n\n" +
-          NEWBIE_SUBTITLE_GUIDE +
-          "\n\nSau đó F5 và bấm Dịch lại."
-      );
-    }
+      if (leftMs(deadline) > 400) {
+        const out = await loadTextTracksWithRetries(
+          [2800, 6000, 9500],
+          "HTMLVideoElement.textTracks (cuối)",
+          videoId
+        );
+        if (out) return out;
+      }
+
+      if (leftMs(deadline) > 400) {
+        const lastEnd = Math.min(deadline, Date.now() + 11000);
+        const last = await tryTimedtextFromSessionCacheLoop(videoId, "webRequest-cache (L3)", lastEnd, loadSignal);
+        if (last) return last;
+      }
+
+      if (!tracks.length) {
+        throw new Error(
+          "Player không có danh sách phụ đề.\n\n" +
+            NEWBIE_SUBTITLE_GUIDE +
+            "\n\nSau đó F5 và bấm Dịch lại."
+        );
+      }
       throw new Error("Lấy phụ đề quá 10 giây hoặc thất bại.\n\n" + NEWBIE_SUBTITLE_GUIDE + "\n\nSau đó F5 rồi bấm Dịch lại.");
+    } finally {
+      try {
+        loadAc.abort();
+      } catch {
+        /* ignore */
+      }
+    }
   }
 
   Object.assign(V, {

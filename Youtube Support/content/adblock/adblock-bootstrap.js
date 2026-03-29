@@ -1,9 +1,8 @@
 /**
- * Luồng độc lập trên trang YT: inject patch MAIN (fetch/XHR) khi user BẬT chặn QC trong cài đặt.
- * Mặc định: bật (không có key / không tắt rõ ràng → inject). Tắt: không inject.
- * Khớp popup + adblock-init + mergeExtensionSettings.
+ * Chạy sớm (manifest document_start): đồng bộ cờ MAIN qua SW, nạp patch fetch/XHR bằng <script src=main.js>
+ * + data-ytdub-entry=adblock-patch (MAIN world, không qua SW — bớt trễ). Mặc định bật chặn.
  */
-(function ythubAdblockBootstrap() {
+export function runYthubAdblockBootstrap() {
   const STORAGE_KEY = "ytdub_settings_v3";
 
   /** true = bật chặn (mặc định nếu không ghi tắt rõ ràng). */
@@ -13,7 +12,7 @@
     return !(ad === false || ad === "false" || ad === 0 || ad === "0");
   }
 
-  /** MAIN world: không dùng inline script (YouTube CSP chặn) — SW inject qua chrome.scripting. */
+  /** MAIN world: không inline — SW set qua chrome.scripting. */
   function injectMainWorldPreference(on) {
     try {
       chrome.runtime.sendMessage(
@@ -25,14 +24,20 @@
     }
   }
 
-  function appendPatchScript() {
-    if (window.__ythubMainAdblockInstalled) return;
+  function requestMainPatchInject() {
     if (window.__ythubAdblockBootstrapPending) return;
     window.__ythubAdblockBootstrapPending = true;
     try {
-      const url = chrome.runtime.getURL("content/adblock/adblock-main.js");
+      let src;
+      try {
+        src = chrome.runtime.getURL("main.js");
+      } catch {
+        window.__ythubAdblockBootstrapPending = false;
+        return;
+      }
       const s = document.createElement("script");
-      s.src = url;
+      s.src = src;
+      s.setAttribute("data-ytdub-entry", "adblock-patch");
       s.async = false;
       s.onload = () => {
         window.__ythubAdblockBootstrapPending = false;
@@ -47,6 +52,7 @@
       };
       const root = document.documentElement || document.head;
       if (root) root.appendChild(s);
+      else window.__ythubAdblockBootstrapPending = false;
     } catch {
       window.__ythubAdblockBootstrapPending = false;
     }
@@ -56,7 +62,7 @@
     const on = adblockOnFromRaw(raw);
     injectMainWorldPreference(on);
     if (!on) return;
-    appendPatchScript();
+    requestMainPatchInject();
   }
 
   void (async () => {
@@ -77,9 +83,9 @@
       const on = adblockOnFromRaw(nv);
       if (wasOn === on) return;
       injectMainWorldPreference(on);
-      if (on) appendPatchScript();
+      if (on) requestMainPatchInject();
     });
   } catch {
     /* ignore */
   }
-})();
+}

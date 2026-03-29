@@ -15,6 +15,36 @@
       : 22000;
     let timedtextLastRequestAt = 0;
     let timedtextCooldownUntil = 0;
+    /** Tránh race: nhiều coroutine cùng chờ rồi fetch một lúc (firstSuccess song song). */
+    let timedtextFetchQueue = Promise.resolve();
+    /** Cùng một timedtext (bỏ fmt) — dùng chung một Promise, không bắn trùng request. */
+    const timedtextInflight = new Map();
+
+    function timedtextDedupeKey(href) {
+      try {
+        const u = new URL(href, location.origin);
+        const keySet = new Set();
+        u.searchParams.forEach((_, k) => keySet.add(k));
+        const keys = [...keySet].sort();
+        const sp = new URLSearchParams();
+        for (let i = 0; i < keys.length; i += 1) {
+          const k = keys[i];
+          if (/^fmt$/i.test(k)) continue;
+          const vals = u.searchParams.getAll(k);
+          for (let j = 0; j < vals.length; j += 1) sp.append(k, vals[j]);
+        }
+        const q = sp.toString();
+        return q ? `${u.origin}${u.pathname}?${q}` : `${u.origin}${u.pathname}`;
+      } catch {
+        return href;
+      }
+    }
+
+    function enqueueTimedtextFetch(fn) {
+      const run = timedtextFetchQueue.then(() => fn());
+      timedtextFetchQueue = run.catch(() => {});
+      return run;
+    }
 
     async function waitTimedtextRequestWindow() {
       const now = Date.now();
@@ -208,6 +238,19 @@
         trackBaseUrl.startsWith("http://") || trackBaseUrl.startsWith("https://")
           ? trackBaseUrl
           : new URL(trackBaseUrl, location.origin).href;
+      const dedupeKey = timedtextDedupeKey(abs);
+      const inflight = timedtextInflight.get(dedupeKey);
+      if (inflight) return inflight;
+
+      const promise = enqueueTimedtextFetch(() => fetchTimedtextCuesSerialized(abs));
+      timedtextInflight.set(dedupeKey, promise);
+      promise.finally(() => {
+        timedtextInflight.delete(dedupeKey);
+      });
+      return promise;
+    }
+
+    async function fetchTimedtextCuesSerialized(abs) {
       const urls = [];
       const seenU = new Set();
       function pushUrl(u) {
@@ -218,10 +261,8 @@
       pushUrl(abs);
       for (const fmt of ["json3", "srv3", "srv1", "vtt"]) pushUrl(timedtextUrlWithFmt(abs, fmt));
 
-      const fetchOpts = {
-        credentials: "include",
-        headers: { Accept: "application/json, application/xml, text/xml, text/vtt, text/plain, */*" }
-      };
+      /** Không gửi cookie — baseUrl từ player thường đã ký; tránh kết hợp cookie + context extension bị nghi bot. */
+      const fetchOpts = { credentials: "omit" };
 
       let lastErr = null;
       for (let u = 0; u < urls.length; u += 1) {

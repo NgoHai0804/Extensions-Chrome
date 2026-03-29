@@ -13,8 +13,8 @@
     subtitlePrefetchAhead: 3,
     // Khoảng cách tối thiểu giữa hai lần fetch cùng URL timedtext (ms)
     timedtextSameUrlRetryGapMs: 6000,
-    // Giãn cách request timedtext (tránh 429)
-    timedtextMinRequestGapMs: 850,
+    // Giãn cách request timedtext (tránh 429; đã có hàng đợi tuần tự trong subtitle-utils)
+    timedtextMinRequestGapMs: 1000,
     timedtext429BaseCooldownMs: 2800,
     timedtext429MaxCooldownMs: 22000,
     /** Khi tab ẩn / Chrome thu nhỏ: rAF bị throttle — dùng setInterval (ms) để vẫn đồng bộ TTS/sub. */

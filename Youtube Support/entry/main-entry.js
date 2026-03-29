@@ -14,6 +14,7 @@ function ytdubDetectEntry() {
     const tag = cs && typeof cs.getAttribute === "function" ? cs.getAttribute("data-ytdub-entry") : null;
     if (tag === "page-bridge") return "page-bridge";
     if (tag === "cc-main") return "cc-main";
+    if (tag === "adblock-patch") return "adblock-patch";
   } catch (_) {
     /* ignore */
   }
@@ -43,6 +44,7 @@ if (ytdubEntry === "service-worker") {
 } else if (ytdubEntry === "popup") {
   require("./packs/popup-pack.js");
 } else if (ytdubEntry === "content") {
+  require("./packs/adblock-bootstrap-run.js");
   require("./packs/content-pack.js");
 } else if (ytdubEntry === "page-bridge") {
   require("./packs/page-bridge-pack.js");

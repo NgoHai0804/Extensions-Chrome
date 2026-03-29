@@ -116,30 +116,6 @@ async function bundleMain() {
   console.log("esbuild → main.js");
 }
 
-/** Patch MAIN world — inject từ adblock-bootstrap (document_start), không gộp main.js. */
-async function bundleAdblockPageScripts() {
-  const outdir = path.join(OUT, "content/adblock");
-  fs.mkdirSync(outdir, { recursive: true });
-  const entries = [
-    { in: path.join(ROOT, "content/adblock/adblock-bootstrap.js"), out: "adblock-bootstrap" },
-    { in: path.join(ROOT, "content/adblock/main-world-patch.js"), out: "adblock-main" }
-  ];
-  for (const e of entries) {
-    await esbuild.build({
-      absWorkingDir: ROOT,
-      entryPoints: [e.in],
-      outfile: path.join(outdir, `${e.out}.js`),
-      bundle: true,
-      format: "iife",
-      platform: "browser",
-      target: ["es2020"],
-      logLevel: "warning",
-    });
-    await minifyClassic(path.join(outdir, `${e.out}.js`));
-  }
-  console.log("esbuild → content/adblock/adblock-bootstrap.js + adblock-main.js");
-}
-
 async function processMainJs() {
   const abs = path.join(OUT, "main.js");
   if (!fs.existsSync(abs)) throw new Error("Thiếu release/main.js");
@@ -159,15 +135,12 @@ async function main() {
   console.log("4) esbuild gộp toàn bộ JS → main.js …");
   await bundleMain();
 
-  console.log("4b) esbuild chặn QC (bootstrap + MAIN patch) …");
-  await bundleAdblockPageScripts();
-
   console.log("5) Obfuscate / minify …");
   await processMainJs();
 
   writeReleaseManifest();
 
-  console.log("\nXong — release/main.js + content/adblock/*.js + manifest, HTML, CSS, icons.");
+  console.log("\nXong — release/main.js + manifest, HTML, CSS, icons.");
   console.log("Load unpacked: thư mục release/");
 }
 

@@ -39,25 +39,15 @@
         "*://youtu.be/*",
         "*://*.youtube-nocookie.com/*"
       ],
-      "js": ["release/content/adblock/adblock-bootstrap.js"],
-      "run_at": "document_start"
-    },
-    {
-      "matches": [
-        "*://*.youtube.com/*",
-        "*://youtu.be/*",
-        "*://*.youtube-nocookie.com/*"
-      ],
       "js": ["release/main.js"],
       "css": ["release/content/dubbing/content.css", "release/content/adblock/adblock.css"],
-      "run_at": "document_idle"
+      "run_at": "document_start"
     }
   ],
   "web_accessible_resources": [
     {
       "resources": [
-        "release/main.js",
-        "release/content/adblock/adblock-main.js"
+        "release/main.js"
       ],
       "matches": [
         "*://*.youtube.com/*",

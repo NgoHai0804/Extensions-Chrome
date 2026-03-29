@@ -60,6 +60,21 @@ async function ensureSettings() {
   }
 }
 
+/**
+ * youtube-transcript gắn User-Agent giả (Chrome 85 / Android app) — dễ bị Google trả trang sorry/bot.
+ * Dùng fetch mặc định của extension (không set UA), không gửi cookie chéo origin.
+ */
+function extensionCleanFetch(input, init = {}) {
+  const next = { ...init };
+  const h = new Headers(next.headers || undefined);
+  h.delete("User-Agent");
+  h.delete("user-agent");
+  next.headers = h;
+  next.credentials = "omit";
+  if (next.redirect == null) next.redirect = "follow";
+  return fetch(input, next);
+}
+
 function videoIdFromTimedtextUrl(urlStr) {
   try {
     const u = new URL(urlStr);
@@ -208,7 +223,7 @@ chrome.runtime.onMessage.addListener((msg, _s, sendResponse) => {
     }
     (async () => {
       try {
-        const cfg = {};
+        const cfg = { fetch: extensionCleanFetch };
         if (langRaw && String(langRaw).toLowerCase() !== "auto") {
           cfg.lang = String(langRaw);
         }

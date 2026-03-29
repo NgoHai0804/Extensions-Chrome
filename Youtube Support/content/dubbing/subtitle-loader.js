@@ -30,6 +30,20 @@
     : 6000;
   const timedtextUrlSeenAt = new Map();
 
+  /** Signed timedtext có `expire` — dùng lại sau khi hết hạn → trắng/403. */
+  function timedtextSignedUrlLikelyStale(urlStr) {
+    try {
+      const u = new URL(String(urlStr || ""), "https://www.youtube.com");
+      const ex = u.searchParams.get("expire");
+      if (ex == null || ex === "") return false;
+      const t = Number(ex);
+      if (!Number.isFinite(t)) return false;
+      return Date.now() / 1000 > t - 90;
+    } catch {
+      return false;
+    }
+  }
+
   function leftMs(deadline) {
     return Math.max(0, Number(deadline || 0) - Date.now());
   }
@@ -254,6 +268,10 @@
       n += 1;
       const cached = await getCachedTimedtextUrl(videoId, slice);
       if (cached) {
+        if (timedtextSignedUrlLikelyStale(cached)) {
+          await V.sleep(280);
+          continue;
+        }
         const lastAt = Number(timedtextUrlSeenAt.get(cached) || 0);
         const now = Date.now();
         if (now - lastAt < TIMEDTEXT_SAME_URL_RETRY_GAP_MS) {
@@ -449,12 +467,12 @@
     const phase1Timeout = Math.min(24000, leftMs(deadline));
     const phase1 = await firstSuccess(
       [
-        async () => tryTimedtextFromSessionCacheLoop(videoId, "webRequest-cache (p1)", cachePollUntil),
         async () => {
           if (!tracks.length) return null;
           const rCap = await loadCuesFromCaptionTracks(tracks);
           return rCap?.cues?.length ? rCap : null;
         },
+        async () => tryTimedtextFromSessionCacheLoop(videoId, "webRequest-cache (p1)", cachePollUntil),
         async () =>
           loadTextTracksWithRetries([800, 1600, 2800, 4500, 7000], "HTMLVideoElement.textTracks (p1)", videoId),
         async () => {
@@ -479,12 +497,12 @@
       const phase2Timeout = Math.min(32000, leftMs(deadline));
       const phase2 = await firstSuccess(
         [
-          async () => tryTimedtextFromSessionCacheLoop(videoId, "webRequest-cache (L2)", cacheEnd2),
           async () => {
             if (!tracks.length) return null;
             const rCap = await loadCuesFromCaptionTracks(tracks);
             return rCap?.cues?.length ? rCap : null;
           },
+          async () => tryTimedtextFromSessionCacheLoop(videoId, "webRequest-cache (L2)", cacheEnd2),
           async () =>
             loadTextTracksWithRetries([3500, 6500, 10000], "HTMLVideoElement.textTracks (L2)", videoId),
           async () => {

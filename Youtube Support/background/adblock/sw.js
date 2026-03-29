@@ -1,6 +1,6 @@
 /**
- * Chặn quảng cáo YouTube: DNR (mạng). Patch MAIN (fetch/XHR) do content script
- * `adblock-bootstrap.js` inject sớm — không phụ thuộc SW.
+ * Chặn quảng cáo YouTube: DNR (mạng). Patch MAIN do content script nạp `main.js`
+ * vào trang (data-ytdub-entry=adblock-patch); SW chỉ set __ythubAdblockUserWant.
  */
 import { STORAGE_KEY, mergeExtensionSettings } from "../../content/dubbing/core/extension-settings-esm.js";
 
@@ -201,7 +201,6 @@ chrome.storage.onChanged.addListener((changes, area) => {
 
 const MSG_REFRESH_ADBLOCK = "YTHUB_REFRESH_ADBLOCK";
 const MSG_SET_MAIN_ADBLOCK_FLAG = "YTHUB_SET_MAIN_ADBLOCK_FLAG";
-
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg?.type === MSG_SET_MAIN_ADBLOCK_FLAG) {
     const tabId = sender.tab?.id;

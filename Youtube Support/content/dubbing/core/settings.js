@@ -6,6 +6,7 @@
     sourceLang: "auto",
     targetLang: "vi",
     showSubtitleOverlay: true,
+    youtubeAriaFocusFix: false,
     speechVolume: 1,
     /** Giây cắt hẳn ở cuối file TTS + chừa trước `end` cue trên timeline video. */
     ttsEndCutSec: 0.35,
@@ -199,6 +200,10 @@
     const subOn = merged.showSubtitleOverlay;
     merged.showSubtitleOverlay =
       subOn === false || subOn === "false" || subOn === 0 || subOn === "0" ? false : true;
+
+    const ariaFix = merged.youtubeAriaFocusFix;
+    merged.youtubeAriaFocusFix =
+      ariaFix === true || ariaFix === "true" || ariaFix === 1 || ariaFix === "1";
 
     merged.backgroundVideoVolume = Number(merged.backgroundVideoVolume);
     if (!Number.isFinite(merged.backgroundVideoVolume)) {

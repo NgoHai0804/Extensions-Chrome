@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "Trợ lý YouTube",
   "description": "Tiện ích: lồng tiếng (phụ đề → dịch → TTS) và chặn quảng cáo trên YouTube.",
-  "version": "3.4.0",
+  "version": "3.4.3",
   "icons": {
     "16": "release/icons/icon-16.png",
     "32": "release/icons/icon-32.png",
@@ -12,7 +12,7 @@
   "content_security_policy": {
     "extension_pages": "script-src 'self'; object-src 'self'; style-src 'self' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com;"
   },
-  "permissions": ["storage", "webRequest", "declarativeNetRequest", "scripting"],
+  "permissions": ["storage", "webRequest", "declarativeNetRequest"],
   "host_permissions": [
     "*://*.youtube.com/*",
     "*://youtu.be/*",

@@ -1,9 +1,11 @@
 /**
- * Chạy sớm (manifest document_start): đồng bộ cờ MAIN qua SW, nạp patch fetch/XHR bằng <script src=main.js>
- * + data-ytdub-entry=adblock-patch (MAIN world, không qua SW — bớt trễ). Mặc định bật chặn.
+ * Chạy sớm (manifest document_start): ghi cờ trên documentElement (MAIN world đọc cùng DOM),
+ * nạp patch fetch/XHR bằng <script src=main.js> + data-ytdub-entry=adblock-patch. Mặc định bật chặn.
  */
 export function runYthubAdblockBootstrap() {
   const STORAGE_KEY = "ytdub_settings_v3";
+  /** Khớp main-world-patch.js + adblock-init.js */
+  const ADBLOCK_WANT_ATTR = "data-ytdub-adblock-want";
 
   /** true = bật chặn (mặc định nếu không ghi tắt rõ ràng). */
   function adblockOnFromRaw(raw) {
@@ -12,13 +14,10 @@ export function runYthubAdblockBootstrap() {
     return !(ad === false || ad === "false" || ad === 0 || ad === "0");
   }
 
-  /** MAIN world: không inline — SW set qua chrome.scripting. */
-  function injectMainWorldPreference(on) {
+  function setDocumentAdblockWant(on) {
     try {
-      chrome.runtime.sendMessage(
-        { type: "YTHUB_SET_MAIN_ADBLOCK_FLAG", enabled: on },
-        () => void chrome.runtime.lastError
-      );
+      const root = document.documentElement;
+      if (root) root.setAttribute(ADBLOCK_WANT_ATTR, on ? "1" : "0");
     } catch {
       /* ignore */
     }
@@ -60,7 +59,7 @@ export function runYthubAdblockBootstrap() {
 
   function scheduleIfEnabled(raw) {
     const on = adblockOnFromRaw(raw);
-    injectMainWorldPreference(on);
+    setDocumentAdblockWant(on);
     if (!on) return;
     requestMainPatchInject();
   }
@@ -82,7 +81,7 @@ export function runYthubAdblockBootstrap() {
       const wasOn = adblockOnFromRaw(ov);
       const on = adblockOnFromRaw(nv);
       if (wasOn === on) return;
-      injectMainWorldPreference(on);
+      setDocumentAdblockWant(on);
       if (on) requestMainPatchInject();
     });
   } catch {

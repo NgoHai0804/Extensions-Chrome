@@ -634,6 +634,13 @@
         if (oldM.showSubtitleOverlay !== newM.showSubtitleOverlay) {
           V.refreshSubtitleOverlayVisibility();
         }
+        if (oldM.youtubeAriaFocusFix !== newM.youtubeAriaFocusFix) {
+          try {
+            window.__YTHUB_SET_ARIA_FOCUS_FIX?.(Boolean(newM.youtubeAriaFocusFix));
+          } catch {
+            /* ignore */
+          }
+        }
         if (oldM.targetLang !== newM.targetLang) {
           V.invalidateTtsLogState();
           V.clearTtsCaches();

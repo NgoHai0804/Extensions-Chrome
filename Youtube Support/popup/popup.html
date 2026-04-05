@@ -59,11 +59,19 @@
 
     <section class="panel">
       <div id="panelConfig" class="tab-panel" role="tabpanel" aria-labelledby="tabConfig">
-        <div class="config-card" role="group" aria-labelledby="toggleAdblockLabel">
+        <div class="config-card" role="group" aria-label="Chặn quảng cáo YouTube">
           <div class="field field-row">
             <span class="field-label-inline" id="toggleAdblockLabel">Chặn quảng cáo YT</span>
             <button type="button" id="toggleAdblock" class="switch" role="switch" aria-labelledby="toggleAdblockLabel"
               aria-checked="true" title="Mặc định bật. Lưu cục bộ; áp dụng ngay trên tab YouTube đang mở.">
+              <span class="switch-track" aria-hidden="true"><span class="switch-knob"></span></span>
+            </button>
+          </div>
+          <div class="field field-row field-row--wrap ythub-field-gap-after-adblock">
+            <span class="field-label-inline field-label-multiline" id="toggleAriaFixLabel">Sửa aria-hidden khi focus (YouTube)</span>
+            <button type="button" id="toggleAriaFocusFix" class="switch" role="switch"
+              aria-labelledby="toggleAriaFixLabel" aria-checked="false"
+              title="Bật nếu DevTools báo aria-hidden trên phần tử đang focus (vd. lockup). Mặc định tắt.">
               <span class="switch-track" aria-hidden="true"><span class="switch-knob"></span></span>
             </button>
           </div>

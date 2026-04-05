@@ -107,6 +107,10 @@ function isAdblockOn() {
   return $("toggleAdblock").getAttribute("aria-checked") === "true";
 }
 
+function isYoutubeAriaFocusFixOn() {
+  return $("toggleAriaFocusFix").getAttribute("aria-checked") === "true";
+}
+
 function syncSubtitleSwitch(on) {
   const btn = $("toggleSubtitle");
   if (!btn) return;
@@ -115,6 +119,12 @@ function syncSubtitleSwitch(on) {
 
 function syncAdblockSwitch(on) {
   const btn = $("toggleAdblock");
+  if (!btn) return;
+  btn.setAttribute("aria-checked", on ? "true" : "false");
+}
+
+function syncAriaFocusFixSwitch(on) {
+  const btn = $("toggleAriaFocusFix");
   if (!btn) return;
   btn.setAttribute("aria-checked", on ? "true" : "false");
 }
@@ -147,13 +157,20 @@ async function load() {
   syncVolLabel();
   syncSubtitleSwitch(s.showSubtitleOverlay !== false);
   syncAdblockSwitch(s.adblockEnabled !== false);
-  /** Chỉ lưu 3 khóa; nếu storage cũ có field thừa → thu gọn một lần. */
+  syncAriaFocusFixSwitch(s.youtubeAriaFocusFix === true);
+  /** Thu gọn storage nếu có field thừa (phiên bản cũ). */
   const cur = await chrome.storage.local.get(STORAGE_KEY);
   const raw = cur[STORAGE_KEY];
   if (raw == null || typeof raw !== "object") {
     await chrome.storage.local.set({ [STORAGE_KEY]: buildPersistedStoragePayload({}) });
   } else {
-    const keep = new Set(["adblockEnabled", "showSubtitleOverlay", "targetLang"]);
+    const keep = new Set([
+      "adblockEnabled",
+      "showSubtitleOverlay",
+      "targetLang",
+      "speechVolume",
+      "youtubeAriaFocusFix"
+    ]);
     const hasExtra = Object.keys(raw).some((k) => !keep.has(k));
     if (hasExtra) {
       await chrome.storage.local.set({ [STORAGE_KEY]: buildPersistedStoragePayload(raw) });
@@ -162,15 +179,28 @@ async function load() {
 }
 
 /**
- * @param {Partial<{ targetLang: string; showSubtitleOverlay: boolean; adblockEnabled: boolean }>} [patch]
+ * @param {Partial<{ targetLang: string; showSubtitleOverlay: boolean; adblockEnabled: boolean; speechVolume: number; youtubeAriaFocusFix: boolean }>} [patch]
  */
 async function persistSettings(patch = {}) {
-  const prev = mergeExtensionSettings((await chrome.storage.local.get(STORAGE_KEY))[STORAGE_KEY]);
+  const stored = (await chrome.storage.local.get(STORAGE_KEY))[STORAGE_KEY];
+  const base = stored && typeof stored === "object" ? { ...stored } : {};
+  const prev = mergeExtensionSettings(stored);
+  const vol =
+    patch.speechVolume !== undefined && patch.speechVolume !== null
+      ? Number(patch.speechVolume)
+      : Number($("speechVolume").value);
+  const ariaFix =
+    Object.prototype.hasOwnProperty.call(patch, "youtubeAriaFocusFix") && patch.youtubeAriaFocusFix !== null
+      ? Boolean(patch.youtubeAriaFocusFix)
+      : isYoutubeAriaFocusFixOn();
   const payload = buildPersistedStoragePayload({
+    ...base,
     ...patch,
     adblockEnabled: isAdblockOn(),
     showSubtitleOverlay: isSubtitleOverlayOn(),
-    targetLang: patch.targetLang != null ? patch.targetLang : $("targetLang").value
+    targetLang: patch.targetLang != null ? patch.targetLang : $("targetLang").value,
+    speechVolume: Number.isFinite(vol) ? vol : prev.speechVolume,
+    youtubeAriaFocusFix: ariaFix
   });
   await chrome.storage.local.set({ [STORAGE_KEY]: payload });
   if (prev.adblockEnabled !== payload.adblockEnabled) {
@@ -216,8 +246,24 @@ document.addEventListener("keydown", (e) => {
   }
 });
 
-$("speechVolume").addEventListener("input", syncVolLabel);
-$("speechVolume").addEventListener("change", syncVolLabel);
+let speechVolSaveTimer = null;
+$("speechVolume").addEventListener("input", () => {
+  syncVolLabel();
+  if (speechVolSaveTimer) clearTimeout(speechVolSaveTimer);
+  speechVolSaveTimer = setTimeout(() => {
+    speechVolSaveTimer = null;
+    const v = Number($("speechVolume").value);
+    void persistSettings({ speechVolume: v });
+  }, 200);
+});
+$("speechVolume").addEventListener("change", () => {
+  syncVolLabel();
+  if (speechVolSaveTimer) {
+    clearTimeout(speechVolSaveTimer);
+    speechVolSaveTimer = null;
+  }
+  void persistSettings({ speechVolume: Number($("speechVolume").value) });
+});
 
 $("toggleSubtitle").addEventListener("click", () => {
   syncSubtitleSwitch(!isSubtitleOverlayOn());
@@ -226,6 +272,11 @@ $("toggleSubtitle").addEventListener("click", () => {
 
 $("toggleAdblock").addEventListener("click", () => {
   syncAdblockSwitch(!isAdblockOn());
+  persistSettings();
+});
+
+$("toggleAriaFocusFix").addEventListener("click", () => {
+  syncAriaFocusFixSwitch(!isYoutubeAriaFocusFixOn());
   persistSettings();
 });
 

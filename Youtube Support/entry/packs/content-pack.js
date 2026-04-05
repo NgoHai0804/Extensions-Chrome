@@ -1,4 +1,9 @@
+import { setYoutubeAriaFocusFixEnabled } from "../../content/a11y/youtube-aria-focus-fix.js";
 import "../../content/dubbing/core/constants.js";
+
+if (typeof window !== "undefined") {
+  window.__YTHUB_SET_ARIA_FOCUS_FIX = setYoutubeAriaFocusFixEnabled;
+}
 import "../../content/dubbing/core/settings.js";
 import "../../content/dubbing/core/config.js";
 import "../../content/dubbing/core/logging.js";

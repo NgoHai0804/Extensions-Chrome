@@ -15,24 +15,81 @@
     return !(ad === false || ad === "false" || ad === 0 || ad === "0");
   }
 
+  const ADBLOCK_WANT_ATTR = "data-ytdub-adblock-want";
+
   function applyFromSettings(raw) {
     const on = adblockOnFromRaw(raw);
     document.documentElement.classList.toggle("ythub-adblock-on", on);
     document.documentElement.classList.toggle("ythub-adblock-off", !on);
   }
 
-  function injectMainWorldPreference(on) {
+  function setDocumentAdblockWant(on) {
     try {
-      chrome.runtime.sendMessage(
-        { type: "YTHUB_SET_MAIN_ADBLOCK_FLAG", enabled: on },
-        () => void chrome.runtime.lastError
-      );
+      const root = document.documentElement;
+      if (root) root.setAttribute(ADBLOCK_WANT_ATTR, on ? "1" : "0");
     } catch {
       /* ignore */
     }
   }
 
   let skipObserver = null;
+  let enforcementDismissLastAt = 0;
+
+  /**
+   * Hộp thoại "Ad blockers are not allowed on YouTube" — đóng bằng nút Close (COUNTDOWN_TO_CLOSE),
+   * không bấm "Allow YouTube Ads". Đi xuyên shadow DOM.
+   */
+  function queryDeepFirst(root, test) {
+    if (!root) return null;
+    const stack = [root];
+    while (stack.length) {
+      const cur = stack.pop();
+      if (!cur) continue;
+      if (cur.nodeType === Node.ELEMENT_NODE) {
+        try {
+          if (test(cur)) return cur;
+        } catch {
+          /* ignore */
+        }
+        if (cur.shadowRoot) stack.push(cur.shadowRoot);
+        const kids = cur.children;
+        for (let i = kids.length - 1; i >= 0; i -= 1) stack.push(kids[i]);
+      } else if (cur.nodeType === Node.DOCUMENT_FRAGMENT_NODE) {
+        const kids = cur.children;
+        for (let i = kids.length - 1; i >= 0; i -= 1) stack.push(kids[i]);
+      }
+    }
+    return null;
+  }
+
+  function tryDismissEnforcementDialog() {
+    const now = Date.now();
+    if (now - enforcementDismissLastAt < 200) return;
+    const host = document.querySelector("ytd-enforcement-message-view-model");
+    if (!host || !host.isConnected) return;
+    let btn = null;
+    try {
+      const dismissRoot = host.querySelector("#dismiss-button");
+      if (dismissRoot) btn = queryDeepFirst(dismissRoot, (el) => el.tagName === "BUTTON");
+    } catch {
+      /* ignore */
+    }
+    if (!btn) {
+      btn = queryDeepFirst(host, (el) => {
+        if (el.tagName !== "BUTTON") return false;
+        const label = (el.getAttribute("aria-label") || "").toLowerCase();
+        return label === "close" || label === "đóng" || /\bclose\b/i.test(label);
+      });
+    }
+    if (!btn || typeof btn.click !== "function") return;
+    try {
+      if (btn.getAttribute("aria-disabled") === "true") return;
+      enforcementDismissLastAt = now;
+      btn.click();
+    } catch {
+      /* ignore */
+    }
+  }
 
   function tryClickSkipAd() {
     const btn =
@@ -52,12 +109,14 @@
     if (skipObserver) return;
     skipObserver = new MutationObserver(() => {
       tryClickSkipAd();
+      tryDismissEnforcementDialog();
     });
     const root = document.body || document.documentElement;
     if (root) {
       skipObserver.observe(root, { childList: true, subtree: true });
     }
     tryClickSkipAd();
+    tryDismissEnforcementDialog();
   }
 
   function stopSkipWatcher() {
@@ -71,10 +130,10 @@
     try {
       const r = await chrome.storage.local.get(STORAGE_KEY);
       const raw = r[STORAGE_KEY];
-      injectMainWorldPreference(adblockOnFromRaw(raw));
+      setDocumentAdblockWant(adblockOnFromRaw(raw));
       applyFromSettings(raw);
     } catch {
-      injectMainWorldPreference(adblockOnFromRaw({}));
+      setDocumentAdblockWant(adblockOnFromRaw({}));
       applyFromSettings({});
     }
 
@@ -85,7 +144,7 @@
         const adOld = adblockOnFromRaw(changes[STORAGE_KEY].oldValue);
         const adNew = adblockOnFromRaw(changes[STORAGE_KEY].newValue);
         if (adOld === adNew) return;
-        injectMainWorldPreference(adNew);
+        setDocumentAdblockWant(adNew);
         applyFromSettings(changes[STORAGE_KEY].newValue);
         if (adNew) startSkipWatcher();
         else stopSkipWatcher();

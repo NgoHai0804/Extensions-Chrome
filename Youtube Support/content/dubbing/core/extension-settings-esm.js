@@ -10,6 +10,8 @@ const DUBBING_DEFAULTS = {
   sourceLang: "auto",
   targetLang: "vi",
   showSubtitleOverlay: true,
+  /** Gỡ aria-hidden sai khi focus (YouTube lockup / popup) — tắt mặc định. */
+  youtubeAriaFocusFix: false,
   speechVolume: 1,
   ttsEndCutSec: 0.35,
   backgroundVideoVolume: 0.12,
@@ -206,6 +208,10 @@ export function mergeExtensionSettings(raw) {
   merged.showSubtitleOverlay =
     subOn === false || subOn === "false" || subOn === 0 || subOn === "0" ? false : true;
 
+  const ariaFix = merged.youtubeAriaFocusFix;
+  merged.youtubeAriaFocusFix =
+    ariaFix === true || ariaFix === "true" || ariaFix === 1 || ariaFix === "1";
+
   merged.ttsEndCutSec = Number(merged.ttsEndCutSec);
   if (!Number.isFinite(merged.ttsEndCutSec)) merged.ttsEndCutSec = DEFAULT_SETTINGS.ttsEndCutSec;
   merged.ttsEndCutSec = Math.min(1.0, Math.max(0, merged.ttsEndCutSec));
@@ -236,14 +242,16 @@ export function mergeExtensionSettings(raw) {
 }
 
 /**
- * Chỉ lưu 3 khóa vào `chrome.storage.local` — còn lại mỗi lần đọc hợp nhất với DEFAULT_SETTINGS.
+ * Lưu các khóa người dùng chỉnh trong popup vào `chrome.storage.local` — còn lại mỗi lần đọc hợp nhất với DEFAULT_SETTINGS.
  */
 export function buildPersistedStoragePayload(raw) {
   const m = mergeExtensionSettings(raw && typeof raw === "object" ? raw : {});
   return {
     adblockEnabled: m.adblockEnabled,
     showSubtitleOverlay: m.showSubtitleOverlay,
-    targetLang: m.targetLang
+    targetLang: m.targetLang,
+    speechVolume: m.speechVolume,
+    youtubeAriaFocusFix: m.youtubeAriaFocusFix
   };
 }
 

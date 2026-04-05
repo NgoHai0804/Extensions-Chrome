@@ -1,6 +1,7 @@
 /**
  * Chặn quảng cáo YouTube: DNR (mạng). Patch MAIN do content script nạp `main.js`
- * vào trang (data-ytdub-entry=adblock-patch); SW chỉ set __ythubAdblockUserWant.
+ * vào trang (data-ytdub-entry=adblock-patch). Cờ bật/tắt: `data-ytdub-adblock-want` trên
+ * documentElement (content script), không dùng chrome.scripting — tránh quyền thừa trên Store.
  */
 import { STORAGE_KEY, mergeExtensionSettings } from "../../content/dubbing/core/extension-settings-esm.js";
 
@@ -200,33 +201,7 @@ chrome.storage.onChanged.addListener((changes, area) => {
 });
 
 const MSG_REFRESH_ADBLOCK = "YTHUB_REFRESH_ADBLOCK";
-const MSG_SET_MAIN_ADBLOCK_FLAG = "YTHUB_SET_MAIN_ADBLOCK_FLAG";
-chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
-  if (msg?.type === MSG_SET_MAIN_ADBLOCK_FLAG) {
-    const tabId = sender.tab?.id;
-    if (!Number.isInteger(tabId)) {
-      sendResponse({ ok: false });
-      return false;
-    }
-    const enabled = Boolean(msg.enabled);
-    void chrome.scripting
-      .executeScript({
-        target: { tabId },
-        world: "MAIN",
-        injectImmediately: true,
-        func: (v) => {
-          try {
-            window.__ythubAdblockUserWant = v;
-          } catch {
-            /* ignore */
-          }
-        },
-        args: [enabled]
-      })
-      .then(() => sendResponse({ ok: true }))
-      .catch(() => sendResponse({ ok: false }));
-    return true;
-  }
+chrome.runtime.onMessage.addListener((msg, _sender, sendResponse) => {
   if (msg?.type !== MSG_REFRESH_ADBLOCK) return false;
   void refreshYoutubeAdblock().then(() => sendResponse({ ok: true })).catch(() => sendResponse({ ok: false }));
   return true;

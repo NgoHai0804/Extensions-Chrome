@@ -102,27 +102,37 @@
   async function loadSettings() {
     if (!extOk()) {
       state.settings = mergeExtensionSettings({});
-      V.refreshSubtitleOverlayVisibility();
-      try {
-        window.__YTDUB_CC?.syncCcLangAttrFromSettings?.(state.settings);
-      } catch {
-        /* ignore */
-      }
-      return;
-    }
-    try {
-      const r = await chrome.storage.local.get(STORAGE_KEY);
-      state.settings = mergeExtensionSettings(r[STORAGE_KEY]);
-    } catch {
-      state.settings = mergeExtensionSettings({});
-    }
     V.refreshSubtitleOverlayVisibility();
     try {
       window.__YTDUB_CC?.syncCcLangAttrFromSettings?.(state.settings);
     } catch {
       /* ignore */
     }
+    try {
+      window.__YTHUB_SET_ARIA_FOCUS_FIX?.(false);
+    } catch {
+      /* ignore */
+    }
+    return;
   }
+  try {
+    const r = await chrome.storage.local.get(STORAGE_KEY);
+    state.settings = mergeExtensionSettings(r[STORAGE_KEY]);
+  } catch {
+    state.settings = mergeExtensionSettings({});
+  }
+  V.refreshSubtitleOverlayVisibility();
+  try {
+    window.__YTDUB_CC?.syncCcLangAttrFromSettings?.(state.settings);
+  } catch {
+    /* ignore */
+  }
+  try {
+    window.__YTHUB_SET_ARIA_FOCUS_FIX?.(Boolean(state.settings.youtubeAriaFocusFix));
+  } catch {
+    /* ignore */
+  }
+}
 
   function getBackgroundVideoVolume() {
     const v = Number(state.settings?.backgroundVideoVolume);

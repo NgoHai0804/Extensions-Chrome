@@ -1,12 +1,20 @@
-/* Chạy trong MAIN world. Chỉ chặn khi window.__ythubAdblockUserWant !== false (content script đồng bộ từ chrome.storage.local). */
+/* Chạy trong MAIN world. Cờ: data-ytdub-adblock-want trên documentElement (content script ghi, cùng DOM). */
 (function ythubMainWorldAdblock() {
   if (!location.hostname.includes("youtube.com")) return;
   if (window.__ythubMainAdblockInstalled) return;
   window.__ythubMainAdblockInstalled = true;
 
+  const ADBLOCK_WANT_ATTR = "data-ytdub-adblock-want";
+
   function userWantsAdblock() {
     try {
-      return globalThis.__ythubAdblockUserWant !== false;
+      const root = document.documentElement;
+      if (root) {
+        const a = root.getAttribute(ADBLOCK_WANT_ATTR);
+        if (a === "0" || a === "false") return false;
+      }
+      if (globalThis.__ythubAdblockUserWant === false) return false;
+      return true;
     } catch {
       return true;
     }

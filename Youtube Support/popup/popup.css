@@ -206,6 +206,22 @@ body {
   margin-bottom: 0;
 }
 
+.field-row--wrap {
+  align-items: flex-start;
+}
+
+.field-label-multiline {
+  line-height: 1.3;
+  padding-right: 6px;
+}
+
+/* Khoảng cách dọc giữa "Chặn quảng cáo" và tùy chọn aria-hidden */
+.ythub-field-gap-after-adblock {
+  margin-top: 4px;
+  padding-top: 14px;
+  border-top: 1px solid var(--border);
+}
+
 .field-label-inline {
   font-size: 12px;
   font-weight: 600;
